@@ -1,9 +1,18 @@
+let manifest = {
+    name: "Message Prefixer",
+    description: "Adds customizable message prefixes with a cycling button",
+    authors: [{
+        name: "xlilcasper",
+        id: "your_discord_id"
+    }],
+    version: "1.0.0"
+};
+
 import { Plugin } from '@vendetta/plugin';
 import { instead } from '@vendetta/patcher';
 import { findByProps } from '@vendetta/metro';
 import { storage } from '@vendetta/plugin';
 import { React } from '@vendetta/metro/common';
-import { getAssetIDByName } from '@vendetta/ui/assets';
 import { Forms } from '@vendetta/ui/components';
 
 const MessageStore = findByProps('sendMessage');
@@ -19,7 +28,6 @@ export default class MessagePrefixer extends Plugin {
     start() {
         if (!storage.currentPrefixIndex) storage.currentPrefixIndex = 0;
 
-        // Add the button to the chat bar
         const chatBarPatch = instead('default', findByProps('ChatBarInput'), (args, orig) => {
             const ret = orig(...args);
             
@@ -40,7 +48,6 @@ export default class MessagePrefixer extends Plugin {
             return ret;
         });
 
-        // Modify outgoing messages
         const messagePatch = instead('sendMessage', MessageStore, (args, orig) => {
             const currentPrefix = this.prefixOptions[storage.currentPrefixIndex];
             if (currentPrefix.title !== 'None') {
