@@ -1,13 +1,3 @@
-let manifest = {
-    name: "Message Prefixer",
-    description: "Adds customizable message prefixes with a cycling button",
-    authors: [{
-        name: "xlilcasper",
-        id: "your_discord_id"
-    }],
-    version: "1.0.0"
-};
-
 import { Plugin } from '@vendetta/plugin';
 import { instead } from '@vendetta/patcher';
 import { findByProps } from '@vendetta/metro';
