@@ -1,0 +1,14 @@
+{
+    "name": "Message Prefixer",
+    "description": "Adds customizable message prefixes with a cycling button",
+    "authors": [
+        {
+            "name": "Your Name",
+            "id": "your_discord_id"
+        }
+    ],
+    "main": "index.js",
+    "vendetta": {
+        "icon": "ic_chat_bubble_16px"
+    }
+}
