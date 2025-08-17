@@ -1,0 +1,14 @@
+{
+    "name": "Message Prefixer",
+    "description": "Adds customizable message prefixes with a cycling button",
+    "authors": [
+        {
+            "name": "xlilcasper",
+            "id": "1126522528198836336"
+        }
+    ],
+    "main": "index.js",
+    "vendetta": {
+        "icon": "ic_chat_bubble_16px"
+    }
+}
