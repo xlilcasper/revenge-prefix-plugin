@@ -2,8 +2,10 @@ import { findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
 
 import PrefixPickerModal from "../components/PrefixPickerModal";
+import { showToast } from "@vendetta/ui/toasts";
+
 import { vstorage } from "..";
-import { getMenuSections, menuLabel, setCurrentPrefix } from "../settings";
+import { getMenuSections, menuLabel, selectionSummary, setCurrentPrefix } from "../settings";
 import { prefixifyLog } from "./debug";
 import { canOpenPrefixModal, closePrefixModal, openPrefixModal } from "./modal";
 
@@ -105,6 +107,7 @@ export function openPrefixPicker(channelId: string, guildId?: string | null) {
 	openPicker(
 		id => {
 			setCurrentPrefix(id, vstorage, channelId, guildId);
+			showToast(selectionSummary(id, vstorage));
 			if (vstorage.debugLogging) {
 				prefixifyLog(vstorage, "setCurrentPrefix", {
 					id,
@@ -122,6 +125,7 @@ export function openPrefixPicker(channelId: string, guildId?: string | null) {
 export function openGlobalPrefixPicker() {
 	openPicker(id => {
 		setCurrentPrefix(id, vstorage);
+		showToast(selectionSummary(id, vstorage));
 		if (vstorage.debugLogging) {
 			prefixifyLog(vstorage, "setCurrentPrefix", {
 				id,

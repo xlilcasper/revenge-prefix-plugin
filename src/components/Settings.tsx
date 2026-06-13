@@ -2,6 +2,7 @@ import { findByStoreName } from "@vendetta/metro";
 import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { getAssetIDByName } from "@vendetta/ui/assets";
+import { showToast } from "@vendetta/ui/toasts";
 import { Forms } from "@vendetta/ui/components";
 
 import PrefixEditor from "./PrefixEditor";
@@ -11,6 +12,7 @@ import {
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
+	normalizeChannelId,
 	PersistMode,
 	selectionSummary,
 	setCurrentPrefix,
@@ -28,9 +30,10 @@ function ActivePrefixSection() {
 
 	const SelectedChannelStore = findByStoreName("SelectedChannelStore");
 	const ChannelStore = findByStoreName("ChannelStore");
-	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
+	const rawChannelId = SelectedChannelStore?.getChannelId?.() ?? null;
+	const channelId = normalizeChannelId(rawChannelId);
 	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
-	const guildId = channel?.guild_id ?? null;
+	const guildId = normalizeChannelId(channel?.guild_id);
 	const selectedId = usePrefixSelection(channelId, guildId);
 	const summary = selectionSummary(selectedId, vstorage);
 
@@ -47,6 +50,7 @@ function ActivePrefixSection() {
 	const pick = (id: string | null) => {
 		if (channelId) setCurrentPrefix(id, vstorage, channelId, guildId);
 		else setCurrentPrefix(id, vstorage);
+		showToast(selectionSummary(id, vstorage));
 	};
 
 	return (

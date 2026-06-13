@@ -34,9 +34,11 @@ const selectionListeners = new Map<string, Set<SelectionListener>>();
 const globalSelectionListeners = new Set<SelectionListener>();
 
 export function subscribeSelection(channelId: string, listener: SelectionListener) {
-	if (!selectionListeners.has(channelId)) selectionListeners.set(channelId, new Set());
-	selectionListeners.get(channelId)!.add(listener);
-	return () => void selectionListeners.get(channelId)?.delete(listener);
+	const key = normalizeChannelId(channelId);
+	if (!key) return () => {};
+	if (!selectionListeners.has(key)) selectionListeners.set(key, new Set());
+	selectionListeners.get(key)!.add(listener);
+	return () => void selectionListeners.get(key)?.delete(listener);
 }
 
 export function subscribeGlobalSelection(listener: SelectionListener) {
@@ -45,7 +47,9 @@ export function subscribeGlobalSelection(listener: SelectionListener) {
 }
 
 function notifySelection(channelId: string, id: string | null) {
-	selectionListeners.get(channelId)?.forEach(fn => fn(id));
+	const key = normalizeChannelId(channelId);
+	if (!key) return;
+	selectionListeners.get(key)?.forEach(fn => fn(id));
 }
 
 function notifyAllSelections(id: string | null) {
@@ -69,13 +73,16 @@ function selectionCacheKey(
 
 export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage, guildId?: string | null) {
 	ensureSettings(vstorage);
-	const cacheKey = selectionCacheKey(channelId, guildId, vstorage);
+	const normalizedChannel = normalizeChannelId(channelId);
+	if (!normalizedChannel) return null;
+	const normalizedGuild = normalizeChannelId(guildId);
+	const cacheKey = selectionCacheKey(normalizedChannel, normalizedGuild, vstorage);
 
 	if (activeSelection.has(cacheKey)) {
 		return activeSelection.get(cacheKey) ?? null;
 	}
 
-	const persisted = readPersistedSelection(channelId, vstorage, guildId);
+	const persisted = readPersistedSelection(normalizedChannel, vstorage, normalizedGuild);
 	activeSelection.set(cacheKey, persisted);
 	return persisted;
 }
@@ -398,10 +405,20 @@ export function cyclePrefix(
 	vstorage: PrefixifyStorage,
 	guildId?: string | null,
 ) {
+	const normalizedChannel = normalizeChannelId(channelId);
+	if (!normalizedChannel) return null;
 	const order = getPrefixCycleOrder(vstorage);
-	const current = getStoredSelection(channelId, vstorage, guildId);
+	const current = getStoredSelection(normalizedChannel, vstorage, guildId);
 	const index = order.findIndex(pid => pid === current);
 	const nextId = order[(index + 1) % order.length];
-	setCurrentPrefix(nextId, vstorage, channelId, guildId);
+	setCurrentPrefix(nextId, vstorage, normalizedChannel, guildId);
 	return nextId;
+}
+
+export function getRuntimeCacheSnapshot() {
+	const entries: Record<string, string | null> = {};
+	for (const [key, value] of activeSelection.entries()) {
+		entries[key] = value;
+	}
+	return entries;
 }

@@ -1,7 +1,8 @@
 import { ReactNative as RN } from "@vendetta/metro/common";
 import { showToast } from "@vendetta/ui/toasts";
 
-import type { PrefixifyStorage } from "../settings";
+import { getEffectiveSelection, getRuntimeCacheSnapshot, type PrefixifyStorage } from "../settings";
+import { getChannelContext } from "./channel";
 
 declare const __PREFIXIFY_BUILD__: string;
 
@@ -54,13 +55,19 @@ export function formatDebugReport(vstorage: PrefixifyStorage) {
 		? JSON.stringify(vstorage.debugBootInfo)
 		: "Reload plugin to capture boot info";
 	const lines = getDebugLines(vstorage);
+	const { channelId, guildId } = getChannelContext();
+	const effective = getEffectiveSelection(vstorage, channelId, guildId);
 
 	return [
 		`Prefixify debug report`,
 		`Build: ${BUILD_ID}`,
 		`Boot: ${bootInfo}`,
+		`channelId: ${channelId ?? "null"}`,
+		`effectiveSelection: ${effective ?? "null"}`,
+		`runtimeCache: ${JSON.stringify(getRuntimeCacheSnapshot())}`,
 		`activePrefixId: ${vstorage.activePrefixId ?? "null"}`,
 		`globalSelection: ${vstorage.globalSelection ?? "null"}`,
+		`persistMode: ${vstorage.persistMode ?? "unknown"}`,
 		`--- log (${lines.length} lines, newest first) ---`,
 		...lines,
 	].join("\n");

@@ -6,6 +6,7 @@ import {
 	getPrefixById,
 	getPrefixes,
 	getPrefixText,
+	normalizeChannelId,
 	shouldSkipMessage,
 	type PrefixifyStorage,
 } from "../settings";
@@ -113,6 +114,15 @@ function preview(text: string, max = 64) {
 	return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
+function readMessageContent(content: unknown) {
+	if (typeof content === "string") return content;
+	if (content == null) return "";
+	if (typeof content === "number" || typeof content === "boolean" || typeof content === "bigint") {
+		return String(content);
+	}
+	return "";
+}
+
 export function finalizeOutgoingMessage(
 	message: Record<string, unknown>,
 	vstorage: PrefixifyStorage,
@@ -120,22 +130,22 @@ export function finalizeOutgoingMessage(
 	channelId?: string | null,
 	guildId?: string | null,
 ): Record<string, unknown> {
-	const raw = typeof message.content === "string" ? message.content : "";
+	const raw = readMessageContent(message.content);
 	const contentType = message.content == null ? "null" : typeof message.content;
 
 	if (isDebugEnabled(vstorage) && contentType !== "string") {
 		prefixifyLog(vstorage, `${source}:content-type`, { contentType });
 	}
 
-	const resolvedChannel = channelId
-		?? (typeof message.channel_id === "string" ? message.channel_id : null)
-		?? null;
+	const resolvedChannel = normalizeChannelId(
+		channelId ?? message.channel_id,
+	);
 
 	const result = finalizeOutgoingContent(raw, vstorage, {
 		attachments: message.attachments as unknown[] | undefined,
 		sticker_ids: message.sticker_ids as unknown[] | undefined,
 		channelId: resolvedChannel,
-		guildId,
+		guildId: normalizeChannelId(guildId),
 	}, source);
 
 	if (!result.applied && result.content === raw) return message;

@@ -5,26 +5,26 @@ import { vstorage } from "..";
 import {
 	ensurePrefixLoaded,
 	getEffectiveSelection,
+	normalizeChannelId,
 	subscribeGlobalSelection,
 	subscribeSelection,
 } from "../settings";
 
 export function usePrefixSelection(channelId?: string | null, guildId?: string | null) {
 	useProxy(vstorage);
-	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
-		getEffectiveSelection(vstorage, channelId, guildId),
-	);
+	const [, refresh] = React.useReducer(x => x + 1, 0);
+	const normalizedChannel = normalizeChannelId(channelId);
+	const normalizedGuild = normalizeChannelId(guildId);
 
 	React.useEffect(() => {
-		if (channelId) {
-			ensurePrefixLoaded(channelId, vstorage, guildId);
-			setSelectedId(getEffectiveSelection(vstorage, channelId, guildId));
-			return subscribeSelection(channelId, setSelectedId);
+		if (normalizedChannel) {
+			ensurePrefixLoaded(normalizedChannel, vstorage, normalizedGuild);
 		}
 
-		setSelectedId(getEffectiveSelection(vstorage, null, null));
-		return subscribeGlobalSelection(setSelectedId);
-	}, [channelId, guildId]);
+		return normalizedChannel
+			? subscribeSelection(normalizedChannel, () => refresh())
+			: subscribeGlobalSelection(() => refresh());
+	}, [normalizedChannel, normalizedGuild]);
 
-	return selectedId;
+	return getEffectiveSelection(vstorage, normalizedChannel, normalizedGuild);
 }
