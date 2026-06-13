@@ -21,8 +21,6 @@ const FormSwitchRow = Forms?.FormSwitchRow;
 const FormInput = Forms?.FormInput;
 
 function ActivePrefixSection() {
-	useProxy(vstorage);
-
 	const SelectedChannelStore = findByStoreName("SelectedChannelStore");
 	const ChannelStore = findByStoreName("ChannelStore");
 	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
@@ -30,7 +28,7 @@ function ActivePrefixSection() {
 	const guildId = channel?.guild_id ?? null;
 	const selectedId = channelId
 		? getStoredSelection(channelId, vstorage, guildId)
-		: vstorage.globalSelection;
+		: (vstorage.globalSelection ?? null);
 
 	if (!FormRow || !FormRadioRow) return null;
 
@@ -57,7 +55,8 @@ function ActivePrefixSection() {
 					subLabel={option.id ? getPrefixById(option.id, vstorage)?.prefix : "No prefix added"}
 					onPress={() => {
 						if (channelId) setSelection(channelId, option.id, vstorage, guildId);
-						else vstorage.globalSelection = option.id;
+						else if (option.id) vstorage.globalSelection = option.id;
+						else delete vstorage.globalSelection;
 					}}
 					trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
 					selected={selectedId === option.id}

@@ -52,8 +52,6 @@ export default function PrefixEditor() {
 
 	const prefixes = vstorage.prefixes ?? [];
 
-	if (!FormRow) return null;
-
 	function updateEntry(index: number, entry: PrefixEntry) {
 		const next = [...prefixes];
 		next[index] = entry;

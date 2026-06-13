@@ -76,7 +76,7 @@ export function ensureSettings(vstorage: PrefixifyStorage) {
 	if (typeof vstorage.skipEmpty !== "boolean") vstorage.skipEmpty = true;
 	if (typeof vstorage.skipAlreadyPrefixed !== "boolean") vstorage.skipAlreadyPrefixed = true;
 	if (typeof vstorage.contextMenu !== "boolean") vstorage.contextMenu = true;
-	if (vstorage.globalSelection === undefined) vstorage.globalSelection = null;
+	if (vstorage.globalSelection === null) delete vstorage.globalSelection;
 }
 
 export interface PrefixifyStorage {
@@ -186,7 +186,8 @@ export function setStoredSelection(
 		if (id) vstorage.guildSelections[loc.key] = id;
 		else delete vstorage.guildSelections[loc.key];
 	} else if (loc?.type === "global") {
-		vstorage.globalSelection = id;
+		if (id) vstorage.globalSelection = id;
+		else delete vstorage.globalSelection;
 	}
 
 	notifySelection(channelId, id);
