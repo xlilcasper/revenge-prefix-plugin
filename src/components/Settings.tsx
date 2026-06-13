@@ -8,10 +8,14 @@ import PrefixEditor from "./PrefixEditor";
 import { vstorage } from "..";
 import {
 	getEffectiveSelection,
+	getMenuSections,
+	getPrefixById,
+	menuLabel,
 	PersistMode,
 	selectionSummary,
+	setGlobalSelection,
+	setSelection,
 } from "../settings";
-import { canOpenPrefixPicker, openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
 
 const FormRow = Forms?.FormRow;
 const FormRadioRow = Forms?.FormRadioRow;
@@ -28,39 +32,40 @@ function ActivePrefixSection() {
 	const guildId = channel?.guild_id ?? null;
 	const selectedId = getEffectiveSelection(vstorage, channelId, guildId);
 	const summary = selectionSummary(selectedId, vstorage);
-	const pickerAvailable = canOpenPrefixPicker();
 
 	if (!FormRow) return null;
+
+	const { favorites, recent, rest } = getMenuSections(vstorage);
+	const sections = [
+		{ label: "Disabled", id: null as string | null },
+		...favorites.map(entry => ({ label: menuLabel(entry, "favorite"), id: entry.id })),
+		...recent.map(entry => ({ label: menuLabel(entry, "recent"), id: entry.id })),
+		...rest.map(entry => ({ label: menuLabel(entry), id: entry.id })),
+	];
+
+	const pick = (id: string | null) => {
+		if (channelId) setSelection(channelId, id, vstorage, guildId);
+		else setGlobalSelection(id, vstorage);
+	};
 
 	return (
 		<RN.View>
 			<FormRow
 				label="Quick change in chat"
-				subLabel="Long-press the Send button to open the prefix menu"
+				subLabel="Tap the prefix pill above the input, or long-press Send"
 				leading={FormRow.Icon ? <FormRow.Icon source={getAssetIDByName("PencilIcon")} /> : undefined}
 			/>
-			<FormRow
-				label="Current prefix"
-				subLabel={summary}
-			/>
-			<FormRow
-				label="Choose prefix"
-				subLabel={channelId
-					? "Opens a menu for the channel you have open"
-					: "Opens a menu for your global default"}
-				onPress={() => {
-					if (!pickerAvailable) return;
-					if (channelId) openPrefixPicker(channelId, guildId);
-					else openGlobalPrefixPicker();
-				}}
-				trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
-			/>
-			{!pickerAvailable && (
+			<FormRow label="Current prefix" subLabel={summary} />
+			<FormRow label="Select prefix" subLabel="Tap a name below" />
+			{sections.map(option => (
 				<FormRow
-					label="Prefix menu unavailable"
-					subLabel="Update Revenge or reinstall the plugin if this persists"
+					key={option.id ?? "disabled"}
+					label={option.label}
+					subLabel={option.id ? getPrefixById(option.id, vstorage)?.prefix : "No prefix added"}
+					trailing={FormRow.Radio ? <FormRow.Radio selected={selectedId === option.id} /> : undefined}
+					onPress={() => pick(option.id)}
 				/>
-			)}
+			))}
 		</RN.View>
 	);
 }

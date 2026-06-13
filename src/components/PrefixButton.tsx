@@ -12,7 +12,10 @@ import {
 	subscribeSelection,
 } from "../settings";
 
-const PILL_HEIGHT = 36;
+const useInputHeight = findByProps("useChatInputContainerHeight")?.useChatInputContainerHeight
+	?? function useInputHeightFallback() {
+		return 52;
+	};
 
 const styles = stylesheet.createThemedStyleSheet({
 	androidRipple: {
@@ -20,11 +23,11 @@ const styles = stylesheet.createThemedStyleSheet({
 		cornerRadius: 8,
 	} as any,
 	container: {
-		flexDirection: "row",
+		flexDirection: "row-reverse",
 		position: "absolute",
 		left: 0,
-		top: -(PILL_HEIGHT + 4),
-		zIndex: 3,
+		zIndex: 10,
+		elevation: 10,
 	},
 	button: {
 		borderRadius: 8,
@@ -72,18 +75,25 @@ export default function PrefixButton() {
 	useProxy(vstorage);
 	const { selectedId } = useChannelSelection();
 	const current = getPrefixById(selectedId, vstorage);
+	const inputHeight = useInputHeight();
 
 	return (
-		<RN.View pointerEvents="box-none" style={styles.container}>
+		<RN.View
+			pointerEvents="box-none"
+			style={[styles.container, { bottom: inputHeight + 8 }]}
+		>
 			<RN.Pressable
 				android_ripple={styles.androidRipple}
+				hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
 				onPress={() => {
 					const { channelId, guildId } = getChannelContext();
 					if (!channelId) return;
 					openPrefixPicker(channelId, guildId);
 				}}
+				pointerEvents="box-only"
 				style={styles.button}
 				accessibilityLabel={current ? `Prefix: ${current.label}` : "Select message prefix"}
+				accessibilityRole="button"
 			>
 				{current
 					? (

@@ -1,5 +1,6 @@
 import { findByProps } from "@vendetta/metro";
 
+import PrefixPickerSheet from "../components/PrefixPickerSheet";
 import { vstorage } from "..";
 import {
 	getMenuSections,
@@ -9,21 +10,33 @@ import {
 } from "../settings";
 
 type SimpleActionSheet = (props: {
-	key: "CardOverflow";
-	header: { title: string; subtitle?: string };
+	key: string;
+	header: { title: string; subtitle?: string; onClose?: () => void };
 	options: { label: string; onPress?: () => void }[];
 }) => void;
 
-function getActionSheetApi() {
-	return findByProps("showSimpleActionSheet", "hideActionSheet") as {
-		showSimpleActionSheet?: SimpleActionSheet;
-		hideActionSheet?: () => void;
-	} | null;
+function getShowSimpleActionSheet(): SimpleActionSheet | null {
+	try {
+		const mod = findByProps("showSimpleActionSheet");
+		return mod?.showSimpleActionSheet ?? null;
+	} catch {
+		return null;
+	}
 }
 
-function buildOptions(onPick: (id: string | null) => void) {
+function getLazySheetApi() {
+	try {
+		return findByProps("openLazy", "hideActionSheet") as {
+			openLazy?: (component: Promise<{ default: unknown }>, key: string, props?: object) => void;
+			hideActionSheet?: () => void;
+		} | null;
+	} catch {
+		return null;
+	}
+}
+
+function buildSimpleOptions(onPick: (id: string | null) => void, hide?: () => void) {
 	const { favorites, recent, rest } = getMenuSections(vstorage);
-	const hideActionSheet = getActionSheetApi()?.hideActionSheet;
 	const options: { label: string; onPress?: () => void }[] = [];
 
 	const add = (label: string, id: string | null) => {
@@ -31,7 +44,7 @@ function buildOptions(onPick: (id: string | null) => void) {
 			label,
 			onPress: () => {
 				onPick(id);
-				hideActionSheet?.();
+				hide?.();
 			},
 		});
 	};
@@ -44,31 +57,60 @@ function buildOptions(onPick: (id: string | null) => void) {
 	return options;
 }
 
-export function openPrefixPicker(channelId: string, guildId?: string | null) {
-	const showSimpleActionSheet = getActionSheetApi()?.showSimpleActionSheet;
-	if (!showSimpleActionSheet) return;
+function openLazyPicker(onPick: (id: string | null) => void) {
+	const lazySheet = getLazySheetApi();
+	if (!lazySheet?.openLazy) return false;
 
-	showSimpleActionSheet({
-		key: "CardOverflow",
-		header: { title: "Message Prefix" },
-		options: buildOptions(id => setSelection(channelId, id, vstorage, guildId)),
-	});
+	const onClose = () => lazySheet.hideActionSheet?.();
+	lazySheet.openLazy(
+		Promise.resolve({ default: PrefixPickerSheet }),
+		"PrefixifyPicker",
+		{ onPick, onClose },
+	);
+	return true;
+}
+
+function openSimplePicker(
+	title: string,
+	subtitle: string | undefined,
+	onPick: (id: string | null) => void,
+) {
+	const showSimpleActionSheet = getShowSimpleActionSheet();
+	const hideActionSheet = getLazySheetApi()?.hideActionSheet;
+	if (!showSimpleActionSheet) return openLazyPicker(onPick);
+
+	try {
+		showSimpleActionSheet({
+			key: "CardOverflow",
+			header: {
+				title,
+				subtitle,
+				onClose: () => hideActionSheet?.(),
+			},
+			options: buildSimpleOptions(onPick, hideActionSheet),
+		});
+		return true;
+	} catch {
+		return openLazyPicker(onPick);
+	}
+}
+
+export function openPrefixPicker(channelId: string, guildId?: string | null) {
+	openSimplePicker(
+		"Message Prefix",
+		undefined,
+		id => setSelection(channelId, id, vstorage, guildId),
+	);
 }
 
 export function openGlobalPrefixPicker() {
-	const showSimpleActionSheet = getActionSheetApi()?.showSimpleActionSheet;
-	if (!showSimpleActionSheet) return;
-
-	showSimpleActionSheet({
-		key: "CardOverflow",
-		header: {
-			title: "Message Prefix",
-			subtitle: "Used when no channel is open or persistence is global",
-		},
-		options: buildOptions(id => setGlobalSelection(id, vstorage)),
-	});
+	openSimplePicker(
+		"Message Prefix",
+		"Used when no channel is open or persistence is global",
+		id => setGlobalSelection(id, vstorage),
+	);
 }
 
 export function canOpenPrefixPicker() {
-	return Boolean(getActionSheetApi()?.showSimpleActionSheet);
+	return Boolean(getShowSimpleActionSheet() || getLazySheetApi()?.openLazy);
 }

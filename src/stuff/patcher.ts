@@ -7,7 +7,6 @@ import {
 } from "@vendetta/metro";
 import { React, ReactNative as RN, i18n } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
-import { findInReactTree } from "@vendetta/utils";
 
 import PrefixButton from "../components/PrefixButton";
 import { vstorage } from "..";
@@ -41,15 +40,6 @@ function injectPrefixPill(ret: any) {
 	if (!ret?.props) return;
 
 	const pill = React.createElement(PrefixButton);
-	const row = findInReactTree(
-		ret.props.children,
-		x => x?.type?.displayName === "View" && Array.isArray(x.props?.children),
-	);
-
-	if (row?.props?.children) {
-		row.props.children.unshift(pill);
-		return;
-	}
 
 	if (Array.isArray(ret.props.children)) {
 		ret.props.children.unshift(pill);
@@ -58,6 +48,44 @@ function injectPrefixPill(ret: any) {
 
 	if (ret.props.children != null) {
 		ret.props.children = [pill, ret.props.children];
+	}
+}
+
+function getSendLabel() {
+	try {
+		if (i18n?.Messages?.SEND) return i18n.Messages.SEND;
+
+		const { intl, t: intlMap } = findByProps("intl") ?? {};
+		const { runtimeHashMessageKey } = findByProps("runtimeHashMessageKey") ?? {};
+		if (intl && intlMap && runtimeHashMessageKey) {
+			return intl.string(intlMap[runtimeHashMessageKey("SEND")]);
+		}
+	} catch {}
+
+	return null;
+}
+
+function patchSendLongPress(patches: (() => void)[]) {
+	const sendLabel = getSendLabel();
+	if (!sendLabel) return;
+
+	const hook = ([props]: [Record<string, unknown>]) => {
+		try {
+			if (props?.accessibilityLabel !== sendLabel) return;
+
+			const previous = props.onLongPress as (() => void) | undefined;
+			props.onLongPress = () => {
+				const { channelId, guildId } = getChannelContext();
+				if (channelId) openPrefixPicker(channelId, guildId);
+				previous?.();
+			};
+		} catch {}
+	};
+
+	patches.push(before("type", RN.Pressable, hook));
+
+	if (RN.TouchableOpacity) {
+		patches.push(before("type", RN.TouchableOpacity, hook));
 	}
 }
 
@@ -96,25 +124,7 @@ export default function patcher() {
 		} catch {}
 	}
 
-	try {
-		const sendLabel = i18n?.Messages?.SEND;
-		if (sendLabel) {
-			patches.push(
-				before("type", RN.Pressable, ([props]) => {
-					try {
-						if (props?.accessibilityLabel !== sendLabel) return;
-
-						const previous = props.onLongPress;
-						props.onLongPress = () => {
-							const { channelId, guildId } = getChannelContext();
-							if (channelId) openPrefixPicker(channelId, guildId);
-							previous?.();
-						};
-					} catch {}
-				}),
-			);
-		}
-	} catch {}
+	patchSendLongPress(patches);
 
 	try {
 		const Messages = findByProps("sendMessage", "editMessage");
