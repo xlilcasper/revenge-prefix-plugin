@@ -1,5 +1,5 @@
 import { findByStoreName } from "@vendetta/metro";
-import { ReactNative as RN } from "@vendetta/metro/common";
+import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { getAssetIDByName } from "@vendetta/ui/assets";
 import { Forms } from "@vendetta/ui/components";
@@ -15,6 +15,7 @@ import {
 	selectionSummary,
 	setGlobalSelection,
 	setSelection,
+	subscribeSelection,
 } from "../settings";
 import { openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
 
@@ -31,7 +32,16 @@ function ActivePrefixSection() {
 	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
 	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
 	const guildId = channel?.guild_id ?? null;
-	const selectedId = getEffectiveSelection(vstorage, channelId, guildId);
+	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
+		getEffectiveSelection(vstorage, channelId, guildId),
+	);
+
+	React.useEffect(() => {
+		setSelectedId(getEffectiveSelection(vstorage, channelId, guildId));
+		if (!channelId) return;
+		return subscribeSelection(channelId, id => setSelectedId(id));
+	}, [channelId, guildId]);
+
 	const summary = selectionSummary(selectedId, vstorage);
 
 	if (!FormRow) return null;

@@ -8,6 +8,8 @@ import {
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
+	selectionSummary,
+	subscribeSelection,
 } from "../settings";
 
 const FormRow = Forms?.FormRow;
@@ -25,6 +27,13 @@ export default function PrefixPickerModal({
 	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
 		getEffectiveSelection(vstorage, channelId, guildId),
 	);
+
+	React.useEffect(() => {
+		setSelectedId(getEffectiveSelection(vstorage, channelId, guildId));
+		if (!channelId) return;
+		return subscribeSelection(channelId, id => setSelectedId(id));
+	}, [channelId, guildId]);
+
 	const { favorites, recent, rest } = getMenuSections(vstorage);
 	const sections = [
 		{ label: "Disabled", id: null as string | null },
@@ -43,6 +52,7 @@ export default function PrefixPickerModal({
 
 	return (
 		<RN.ScrollView style={{ flex: 1 }}>
+			<FormRow label="Current prefix" subLabel={selectionSummary(selectedId, vstorage)} />
 			{sections.map(option => (
 				<FormRow
 					key={option.id ?? "disabled"}
