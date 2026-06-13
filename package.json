@@ -1,0 +1,14 @@
+{
+	"name": "revenge-prefix-plugin",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "node scripts/build.mjs"
+	},
+	"devDependencies": {
+		"@swc/core": "^1.10.7",
+		"esbuild": "^0.20.1",
+		"typescript": "^5.8.3",
+		"vendetta-types": "^2.4.21"
+	}
+}

@@ -7,8 +7,9 @@
 			"id": "1126522528198836336"
 		}
 	],
-	"main": "src/index.ts",
+	"main": "index.js",
 	"vendetta": {
 		"icon": "PencilIcon"
-	}
+	},
+	"hash": "b07856b0c0ebf9d18bdd1fc6bf71012ad5dcc298de1aaf63903224a772292a78"
 }
