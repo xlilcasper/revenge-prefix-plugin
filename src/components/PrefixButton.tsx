@@ -1,7 +1,6 @@
 import { findByStoreName } from "@vendetta/metro";
-import { React, ReactNative as RN, stylesheet } from "@vendetta/metro/common";
+import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
-import { semanticColors } from "@vendetta/ui";
 
 import { vstorage } from "..";
 import { openPrefixPicker } from "../stuff/openPrefixPicker";
@@ -11,7 +10,7 @@ import {
 	subscribeSelection,
 } from "../settings";
 
-const styles = stylesheet.createThemedStyleSheet({
+const styles = {
 	button: {
 		borderRadius: 8,
 		paddingHorizontal: 10,
@@ -20,21 +19,21 @@ const styles = stylesheet.createThemedStyleSheet({
 		marginTop: -12,
 		minWidth: 40,
 		maxWidth: 80,
-		backgroundColor: semanticColors.BACKGROUND_SECONDARY_ALT,
-		alignItems: "center",
-		justifyContent: "center",
+		backgroundColor: "#2b2d31",
+		alignItems: "center" as const,
+		justifyContent: "center" as const,
 	},
 	label: {
-		color: semanticColors.TEXT_NORMAL,
+		color: "#dbdee1",
 		fontSize: 12,
-		fontWeight: "600",
+		fontWeight: "600" as const,
 	},
 	off: {
-		color: semanticColors.TEXT_MUTED,
+		color: "#949ba4",
 		fontSize: 11,
-		fontWeight: "600",
+		fontWeight: "600" as const,
 	},
-});
+};
 
 function useChannelSelection() {
 	const SelectedChannelStore = findByStoreName("SelectedChannelStore");

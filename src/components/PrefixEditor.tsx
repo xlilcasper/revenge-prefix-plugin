@@ -9,7 +9,9 @@ import {
 	type PrefixEntry,
 } from "../settings";
 
-const { FormRow, FormSwitchRow } = Forms;
+const FormRow = Forms?.FormRow;
+const FormSwitchRow = Forms?.FormSwitchRow;
+const FormInput = Forms?.FormInput;
 
 function PrefixRow({
 	entry,
@@ -20,7 +22,7 @@ function PrefixRow({
 	onChange: (entry: PrefixEntry) => void;
 	onRemove: () => void;
 }) {
-	const { FormInput } = Forms;
+	if (!FormRow || !FormInput || !FormSwitchRow) return null;
 
 	return (
 		<RN.View style={{ marginBottom: 12 }}>
@@ -49,6 +51,8 @@ export default function PrefixEditor() {
 	useProxy(vstorage);
 
 	const prefixes = vstorage.prefixes ?? [];
+
+	if (!FormRow) return null;
 
 	function updateEntry(index: number, entry: PrefixEntry) {
 		const next = [...prefixes];

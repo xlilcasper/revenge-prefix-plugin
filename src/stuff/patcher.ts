@@ -15,54 +15,67 @@ import {
 
 export default function patcher() {
 	const patches: (() => void)[] = [];
-	const Messages = findByProps("sendMessage", "editMessage");
-	const ChatInputGuardWrapper = findByName("ChatInputGuardWrapper", false);
-	const ChannelStore = findByStoreName("ChannelStore");
 
-	if (ChatInputGuardWrapper) {
-		patches.push(
-			after("default", ChatInputGuardWrapper, (_, ret) => {
-				const children = ret?.props?.children;
-				if (!children) return;
+	try {
+		const ChatInputGuardWrapper = findByName("ChatInputGuardWrapper", false);
+		if (ChatInputGuardWrapper?.default) {
+			patches.push(
+				after("default", ChatInputGuardWrapper, (_, ret) => {
+					try {
+						const children = ret?.props?.children;
+						if (!children) return;
 
-				if (Array.isArray(children)) {
-					children.unshift(React.createElement(PrefixButton));
-				} else {
-					ret.props.children = [React.createElement(PrefixButton), children];
-				}
-			}),
-		);
-	}
+						if (Array.isArray(children)) {
+							children.unshift(React.createElement(PrefixButton));
+						} else {
+							ret.props.children = [React.createElement(PrefixButton), children];
+						}
+					} catch {}
+				}),
+			);
+		}
+	} catch {}
 
-	if (Messages) {
-		patches.push(
-			before("sendMessage", Messages, args => {
-				const channelId = args[0];
-				const message = args[1];
-				if (!channelId || !message) return;
+	try {
+		const Messages = findByProps("sendMessage", "editMessage");
+		const ChannelStore = findByStoreName("ChannelStore");
 
-				const channel = ChannelStore?.getChannel?.(channelId);
-				const guildId = channel?.guild_id ?? null;
-				const selectedId = getStoredSelection(channelId, vstorage, guildId);
-				const entry = getPrefixById(selectedId, vstorage);
-				if (!entry) return;
-				if (shouldSkipMessage(message, vstorage)) return;
+		if (Messages?.sendMessage) {
+			patches.push(
+				before("sendMessage", Messages, args => {
+					try {
+						const channelId = args[0];
+						const message = args[1];
+						if (!channelId || !message) return;
 
-				const prefix = getPrefixText(entry, vstorage);
-				const content = message.content ?? "";
+						const channel = ChannelStore?.getChannel?.(channelId);
+						const guildId = channel?.guild_id ?? null;
+						const selectedId = getStoredSelection(channelId, vstorage, guildId);
+						const entry = getPrefixById(selectedId, vstorage);
+						if (!entry) return;
+						if (shouldSkipMessage(message, vstorage)) return;
 
-				if (!content.startsWith(prefix)) {
-					message.content = prefix + content;
-				}
+						const prefix = getPrefixText(entry, vstorage);
+						const content = message.content ?? "";
 
-				if (shouldAutoDisable(vstorage)) {
-					setSelection(channelId, null, vstorage, guildId);
-				}
-			}),
-		);
-	}
+						if (!content.startsWith(prefix)) {
+							message.content = prefix + content;
+						}
+
+						if (shouldAutoDisable(vstorage)) {
+							setSelection(channelId, null, vstorage, guildId);
+						}
+					} catch {}
+				}),
+			);
+		}
+	} catch {}
 
 	return () => {
-		for (const unpatch of patches) unpatch();
+		for (const unpatch of patches) {
+			try {
+				unpatch();
+			} catch {}
+		}
 	};
 }

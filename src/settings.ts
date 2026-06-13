@@ -108,7 +108,7 @@ export function getRecentIds(vstorage: PrefixifyStorage) {
 }
 
 export function formatPrefix(name: string, format: string) {
-	return (format || "**[{name}]:** ").replaceAll("{name}", name);
+	return (format || "**[{name}]:** ").replace(/\{name\}/g, name);
 }
 
 export function getPrefixText(entry: PrefixEntry, vstorage: PrefixifyStorage) {

@@ -10,15 +10,19 @@ export const vstorage = storage as PrefixifyStorage;
 let unpatch: (() => void) | null = null;
 
 export function onLoad() {
-	ensureSettings(vstorage);
-	startShiftTracking();
-	unpatch = patcher();
+	try {
+		ensureSettings(vstorage);
+		startShiftTracking();
+		unpatch = patcher();
+	} catch {}
 }
 
 export function onUnload() {
-	stopShiftTracking();
-	unpatch?.();
-	unpatch = null;
+	try {
+		stopShiftTracking();
+		unpatch?.();
+		unpatch = null;
+	} catch {}
 }
 
 export const settings = Settings;
