@@ -125,6 +125,16 @@ function selectionCacheKey(
 	return `session:${channelId}`;
 }
 
+export function normalizeChannelId(id: unknown): string | null {
+	if (id == null || id === "") return null;
+	if (typeof id === "string") return id;
+	if (typeof id === "number" || typeof id === "bigint") return String(id);
+	if (typeof id === "object" && "id" in id) {
+		return normalizeChannelId((id as { id: unknown }).id);
+	}
+	return String(id);
+}
+
 function readPersistedSelection(
 	channelId: string,
 	vstorage: PrefixifyStorage,
@@ -221,25 +231,27 @@ export function shouldSkipMessage(message: any, vstorage: PrefixifyStorage) {
 }
 
 export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage, guildId?: string | null) {
-	if (!channelId) {
+	const normalizedChannelId = normalizeChannelId(channelId);
+	if (!normalizedChannelId) {
 		if (activeSelection.has("global")) return activeSelection.get("global") ?? null;
 		return vstorage.globalSelection ?? null;
 	}
 
 	ensureSettings(vstorage);
-	const cacheKey = selectionCacheKey(channelId, guildId, vstorage);
+	const cacheKey = selectionCacheKey(normalizedChannelId, guildId, vstorage);
 
 	if (activeSelection.has(cacheKey)) {
 		return activeSelection.get(cacheKey) ?? null;
 	}
 
-	const persisted = readPersistedSelection(channelId, vstorage, guildId);
+	const persisted = readPersistedSelection(normalizedChannelId, vstorage, guildId);
 	activeSelection.set(cacheKey, persisted);
 	return persisted;
 }
 
 export function getEffectiveSelection(vstorage: PrefixifyStorage, channelId?: string | null, guildId?: string | null) {
-	if (channelId) return getStoredSelection(channelId, vstorage, guildId);
+	const normalizedChannelId = normalizeChannelId(channelId);
+	if (normalizedChannelId) return getStoredSelection(normalizedChannelId, vstorage, guildId);
 	if (activeSelection.has("global")) return activeSelection.get("global") ?? null;
 	return vstorage.globalSelection ?? null;
 }
@@ -250,17 +262,20 @@ export function setStoredSelection(
 	vstorage: PrefixifyStorage,
 	guildId?: string | null,
 ) {
+	const normalizedChannelId = normalizeChannelId(channelId);
+	if (!normalizedChannelId) return;
+
 	ensureSettings(vstorage);
-	const cacheKey = selectionCacheKey(channelId, guildId, vstorage);
+	const cacheKey = selectionCacheKey(normalizedChannelId, guildId, vstorage);
 
 	activeSelection.set(cacheKey, id);
-	writePersistedSelection(channelId, id, vstorage, guildId);
+	writePersistedSelection(normalizedChannelId, id, vstorage, guildId);
 
 	if (cacheKey === "global") {
 		notifyAllSelections(id);
 	}
 
-	notifySelection(channelId, id);
+	notifySelection(normalizedChannelId, id);
 }
 
 export function setGlobalSelection(id: string | null, vstorage: PrefixifyStorage) {

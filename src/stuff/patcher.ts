@@ -3,23 +3,14 @@ import {
 	findByName,
 	findByProps,
 	findByTypeName,
-	findByStoreName,
 } from "@vendetta/metro";
 import { React, ReactNative as RN, i18n } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
 
 import PrefixButton from "../components/PrefixButton";
-import { vstorage } from "..";
 import { getChannelContext } from "./channel";
 import { openPrefixPicker } from "./openPrefixPicker";
-import {
-	getPrefixById,
-	getPrefixText,
-	getStoredSelection,
-	setSelection,
-	shouldAutoDisable,
-	shouldSkipMessage,
-} from "../settings";
+import patchSendMessage from "./sendPatch";
 
 function findChatInputWrapper() {
 	try {
@@ -129,41 +120,7 @@ export default function patcher() {
 	}
 
 	patchSendLongPress(patches);
-
-	try {
-		const Messages = findByProps("sendMessage", "editMessage");
-		const ChannelStore = findByStoreName("ChannelStore");
-
-		if (Messages?.sendMessage) {
-			patches.push(
-				before("sendMessage", Messages, args => {
-					try {
-						const channelId = args[0];
-						const message = args[1];
-						if (!channelId || !message) return;
-
-						const channel = ChannelStore?.getChannel?.(channelId);
-						const guildId = channel?.guild_id ?? null;
-						const selectedId = getStoredSelection(channelId, vstorage, guildId);
-						const entry = getPrefixById(selectedId, vstorage);
-						if (!entry) return;
-						if (shouldSkipMessage(message, vstorage)) return;
-
-						const prefix = getPrefixText(entry, vstorage);
-						const content = message.content ?? "";
-
-						if (!content.startsWith(prefix)) {
-							message.content = prefix + content;
-						}
-
-						if (shouldAutoDisable(vstorage)) {
-							setSelection(channelId, null, vstorage, guildId);
-						}
-					} catch {}
-				}),
-			);
-		}
-	} catch {}
+	patchSendMessage(patches);
 
 	return () => {
 		for (const unpatch of patches) {
