@@ -3,12 +3,7 @@ import { React } from "@vendetta/metro/common";
 
 import PrefixPickerModal from "../components/PrefixPickerModal";
 import { vstorage } from "..";
-import {
-	getMenuSections,
-	menuLabel,
-	setGlobalSelection,
-	setSelection,
-} from "../settings";
+import { getMenuSections, menuLabel, setCurrentPrefix } from "../settings";
 import { canOpenPrefixModal, closePrefixModal, openPrefixModal } from "./modal";
 
 type SimpleActionSheet = (props: {
@@ -57,8 +52,6 @@ function buildSimpleOptions(onPick: (id: string | null) => void, hide?: () => vo
 }
 
 function openActionSheetPicker(
-	title: string,
-	subtitle: string | undefined,
 	onPick: (id: string | null) => void,
 ) {
 	const showSimpleActionSheet = getShowSimpleActionSheet();
@@ -69,8 +62,7 @@ function openActionSheetPicker(
 		showSimpleActionSheet({
 			key: "CardOverflow",
 			header: {
-				title,
-				subtitle,
+				title: "Message Prefix",
 				onClose: () => hideActionSheet?.(),
 			},
 			options: buildSimpleOptions(onPick, hideActionSheet),
@@ -105,15 +97,19 @@ function openPicker(
 	guildId?: string | null,
 ) {
 	if (openModalPicker(onPick, channelId, guildId)) return true;
-	return openActionSheetPicker("Message Prefix", undefined, onPick);
+	return openActionSheetPicker(onPick);
 }
 
 export function openPrefixPicker(channelId: string, guildId?: string | null) {
-	openPicker(id => setSelection(channelId, id, vstorage, guildId), channelId, guildId);
+	openPicker(
+		id => setCurrentPrefix(id, vstorage, channelId, guildId),
+		channelId,
+		guildId,
+	);
 }
 
 export function openGlobalPrefixPicker() {
-	openPicker(id => setGlobalSelection(id, vstorage));
+	openPicker(id => setCurrentPrefix(id, vstorage));
 }
 
 export function canOpenPrefixPicker() {

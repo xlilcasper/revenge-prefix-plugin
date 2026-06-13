@@ -7,15 +7,13 @@ import { Forms } from "@vendetta/ui/components";
 import PrefixEditor from "./PrefixEditor";
 import { vstorage } from "..";
 import {
-	getEffectiveSelection,
+	ensurePrefixLoaded,
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
 	PersistMode,
 	selectionSummary,
-	setGlobalSelection,
-	setSelection,
-	subscribeSelection,
+	setCurrentPrefix,
 } from "../settings";
 import { openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
 
@@ -32,14 +30,10 @@ function ActivePrefixSection() {
 	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
 	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
 	const guildId = channel?.guild_id ?? null;
-	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
-		getEffectiveSelection(vstorage, channelId, guildId),
-	);
+	const selectedId = vstorage.activePrefixId ?? null;
 
 	React.useEffect(() => {
-		setSelectedId(getEffectiveSelection(vstorage, channelId, guildId));
-		if (!channelId) return;
-		return subscribeSelection(channelId, id => setSelectedId(id));
+		ensurePrefixLoaded(channelId, vstorage, guildId);
 	}, [channelId, guildId]);
 
 	const summary = selectionSummary(selectedId, vstorage);
@@ -55,8 +49,8 @@ function ActivePrefixSection() {
 	];
 
 	const pick = (id: string | null) => {
-		if (channelId) setSelection(channelId, id, vstorage, guildId);
-		else setGlobalSelection(id, vstorage);
+		if (channelId) setCurrentPrefix(id, vstorage, channelId, guildId);
+		else setCurrentPrefix(id, vstorage);
 	};
 
 	return (

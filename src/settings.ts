@@ -25,26 +25,33 @@ export const DEFAULT_PREFIXES: PrefixEntry[] = [
 ];
 
 const MAX_RECENTS = 5;
-const activeSelection = new Map<string, string | null>();
+
+/** Tracks which channel activePrefixId was loaded for. */
+let loadedForChannel: string | null = null;
 
 type SelectionListener = (id: string | null) => void;
-const selectionListeners = new Map<string, Set<SelectionListener>>();
+const selectionListeners = new Set<SelectionListener>();
 
-export function subscribeSelection(channelId: string, listener: SelectionListener) {
-	if (!channelId) return () => {};
-	if (!selectionListeners.has(channelId)) selectionListeners.set(channelId, new Set());
-	selectionListeners.get(channelId)!.add(listener);
-	return () => void selectionListeners.get(channelId)?.delete(listener);
+export function subscribePrefixSelection(vstorage: PrefixifyStorage, listener: SelectionListener) {
+	selectionListeners.add(listener);
+	listener(getCurrentPrefixId(vstorage));
+	return () => void selectionListeners.delete(listener);
 }
 
-function notifySelection(channelId: string, id: string | null) {
-	selectionListeners.get(channelId)?.forEach(fn => fn(id));
-}
-
-function notifyAllSelections(id: string | null) {
-	for (const listeners of selectionListeners.values()) {
-		listeners.forEach(fn => fn(id));
+function notifySelection(vstorage: PrefixifyStorage) {
+	const id = getCurrentPrefixId(vstorage);
+	for (const listener of selectionListeners) {
+		listener(id);
 	}
+}
+
+export function getCurrentPrefixId(vstorage: PrefixifyStorage) {
+	return vstorage.activePrefixId ?? null;
+}
+
+function setActivePrefixId(vstorage: PrefixifyStorage, id: string | null) {
+	if (id) vstorage.activePrefixId = id;
+	else delete vstorage.activePrefixId;
 }
 
 export function newPrefixId() {
@@ -79,6 +86,7 @@ export function ensureSettings(vstorage: PrefixifyStorage) {
 	if (typeof vstorage.skipEmpty !== "boolean") vstorage.skipEmpty = true;
 	if (typeof vstorage.skipAlreadyPrefixed !== "boolean") vstorage.skipAlreadyPrefixed = true;
 	if (vstorage.globalSelection === null) delete vstorage.globalSelection;
+	if (vstorage.activePrefixId === null) delete vstorage.activePrefixId;
 }
 
 export interface PrefixifyStorage {
@@ -93,11 +101,32 @@ export interface PrefixifyStorage {
 	skipEmpty: boolean;
 	skipAlreadyPrefixed: boolean;
 	contextMenu?: boolean;
+	/** Live prefix used by pill, menu, and send. */
+	activePrefixId?: string | null;
 	globalSelection: string | null;
 	channelSelections: Record<string, string>;
 	guildSelections: Record<string, string>;
 	sessionSelections: Record<string, string>;
 	recentIds: string[];
+}
+
+export function normalizeChannelId(id: unknown): string | null {
+	if (id == null || id === "") return null;
+	if (typeof id === "string") return id;
+	if (typeof id === "number" || typeof id === "bigint") return String(id);
+	if (typeof id === "object") {
+		const obj = id as Record<string, unknown>;
+		if ("channel_id" in obj) {
+			return normalizeChannelId(obj.channel_id);
+		}
+		if ("content" in obj || "attachments" in obj || "sticker_ids" in obj) {
+			return null;
+		}
+		if ("id" in obj) {
+			return normalizeChannelId(obj.id);
+		}
+	}
+	return String(id);
 }
 
 function storageKey(channelId: string, guildId: string | null | undefined, vstorage: PrefixifyStorage) {
@@ -111,28 +140,6 @@ function storageKey(channelId: string, guildId: string | null | undefined, vstor
 		default:
 			return null;
 	}
-}
-
-function selectionCacheKey(
-	channelId: string,
-	guildId: string | null | undefined,
-	vstorage: PrefixifyStorage,
-) {
-	const loc = storageKey(channelId, guildId, vstorage);
-	if (loc?.type === "global") return "global";
-	if (loc?.type === "guild") return `guild:${loc.key}`;
-	if (loc?.type === "channel") return `channel:${loc.key}`;
-	return `session:${channelId}`;
-}
-
-export function normalizeChannelId(id: unknown): string | null {
-	if (id == null || id === "") return null;
-	if (typeof id === "string") return id;
-	if (typeof id === "number" || typeof id === "bigint") return String(id);
-	if (typeof id === "object" && "id" in id) {
-		return normalizeChannelId((id as { id: unknown }).id);
-	}
-	return String(id);
 }
 
 function readPersistedSelection(
@@ -185,6 +192,52 @@ function writePersistedSelection(
 	vstorage.sessionSelections = next;
 }
 
+export function ensurePrefixLoaded(
+	channelId: string | null | undefined,
+	vstorage: PrefixifyStorage,
+	guildId?: string | null,
+) {
+	ensureSettings(vstorage);
+	const normalized = normalizeChannelId(channelId);
+
+	if (!normalized) {
+		if (loadedForChannel === "__none__") return;
+		loadedForChannel = "__none__";
+		setActivePrefixId(vstorage, vstorage.globalSelection ?? null);
+		notifySelection(vstorage);
+		return;
+	}
+
+	if (loadedForChannel === normalized) return;
+
+	loadedForChannel = normalized;
+	setActivePrefixId(vstorage, readPersistedSelection(normalized, vstorage, guildId));
+	notifySelection(vstorage);
+}
+
+export function setCurrentPrefix(
+	id: string | null,
+	vstorage: PrefixifyStorage,
+	channelId?: string | null,
+	guildId?: string | null,
+) {
+	ensureSettings(vstorage);
+	setActivePrefixId(vstorage, id);
+
+	const normalized = normalizeChannelId(channelId);
+	if (normalized) {
+		loadedForChannel = normalized;
+		writePersistedSelection(normalized, id, vstorage, guildId);
+	} else {
+		loadedForChannel = "__none__";
+		if (id) vstorage.globalSelection = id;
+		else delete vstorage.globalSelection;
+	}
+
+	if (id) addRecent(id, vstorage);
+	notifySelection(vstorage);
+}
+
 export function getPrefixes(vstorage: PrefixifyStorage) {
 	ensureSettings(vstorage);
 	return vstorage.prefixes.length > 0 ? vstorage.prefixes : DEFAULT_PREFIXES;
@@ -208,7 +261,7 @@ export function getPrefixById(id: string | null, vstorage: PrefixifyStorage) {
 	return getPrefixes(vstorage).find(p => p.id === id) ?? null;
 }
 
-export function shouldSkipMessage(message: any, vstorage: PrefixifyStorage) {
+export function shouldSkipMessage(message: any, vstorage: PrefixifyStorage, entry?: PrefixEntry | null) {
 	ensureSettings(vstorage);
 	const content = (message?.content ?? "").trim();
 
@@ -220,80 +273,13 @@ export function shouldSkipMessage(message: any, vstorage: PrefixifyStorage) {
 		if (!content && !hasAttachments && !hasStickers) return true;
 	}
 
-	if (vstorage.skipAlreadyPrefixed) {
-		const format = vstorage.prefixFormat || "**[{name}]:** ";
-		if (getPrefixes(vstorage).some(p => (message?.content ?? "").startsWith(formatPrefix(p.prefix, format)))) {
-			return true;
-		}
+	if (vstorage.skipAlreadyPrefixed && entry) {
+		const prefix = getPrefixText(entry, vstorage);
+		const body = (message?.content ?? "");
+		if (body.startsWith(prefix)) return true;
 	}
 
 	return false;
-}
-
-export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage, guildId?: string | null) {
-	const normalizedChannelId = normalizeChannelId(channelId);
-	if (!normalizedChannelId) {
-		if (activeSelection.has("global")) return activeSelection.get("global") ?? null;
-		return vstorage.globalSelection ?? null;
-	}
-
-	ensureSettings(vstorage);
-	const cacheKey = selectionCacheKey(normalizedChannelId, guildId, vstorage);
-
-	if (activeSelection.has(cacheKey)) {
-		return activeSelection.get(cacheKey) ?? null;
-	}
-
-	const persisted = readPersistedSelection(normalizedChannelId, vstorage, guildId);
-	activeSelection.set(cacheKey, persisted);
-	return persisted;
-}
-
-export function getEffectiveSelection(vstorage: PrefixifyStorage, channelId?: string | null, guildId?: string | null) {
-	const normalizedChannelId = normalizeChannelId(channelId);
-	if (normalizedChannelId) return getStoredSelection(normalizedChannelId, vstorage, guildId);
-	if (activeSelection.has("global")) return activeSelection.get("global") ?? null;
-	return vstorage.globalSelection ?? null;
-}
-
-export function setStoredSelection(
-	channelId: string,
-	id: string | null,
-	vstorage: PrefixifyStorage,
-	guildId?: string | null,
-) {
-	const normalizedChannelId = normalizeChannelId(channelId);
-	if (!normalizedChannelId) return;
-
-	ensureSettings(vstorage);
-	const cacheKey = selectionCacheKey(normalizedChannelId, guildId, vstorage);
-
-	activeSelection.set(cacheKey, id);
-	writePersistedSelection(normalizedChannelId, id, vstorage, guildId);
-
-	if (cacheKey === "global") {
-		notifyAllSelections(id);
-	}
-
-	notifySelection(normalizedChannelId, id);
-}
-
-export function setGlobalSelection(id: string | null, vstorage: PrefixifyStorage) {
-	ensureSettings(vstorage);
-	activeSelection.set("global", id);
-	if (id) vstorage.globalSelection = id;
-	else delete vstorage.globalSelection;
-	notifyAllSelections(id);
-}
-
-export function setSelection(
-	channelId: string,
-	id: string | null,
-	vstorage: PrefixifyStorage,
-	guildId?: string | null,
-) {
-	setStoredSelection(channelId, id, vstorage, guildId);
-	if (id) addRecent(id, vstorage);
 }
 
 function addRecent(id: string, vstorage: PrefixifyStorage) {
@@ -347,15 +333,20 @@ export function getPrefixCycleOrder(vstorage: PrefixifyStorage) {
 	];
 }
 
+export function resetPrefixRuntime(vstorage: PrefixifyStorage) {
+	loadedForChannel = null;
+	delete vstorage.activePrefixId;
+}
+
 export function cyclePrefix(
 	channelId: string,
 	vstorage: PrefixifyStorage,
 	guildId?: string | null,
 ) {
+	ensurePrefixLoaded(channelId, vstorage, guildId);
 	const order = getPrefixCycleOrder(vstorage);
-	const current = getStoredSelection(channelId, vstorage, guildId);
-	const index = order.findIndex(pid => pid === current);
+	const index = order.findIndex(pid => pid === getCurrentPrefixId(vstorage));
 	const nextId = order[(index + 1) % order.length];
-	setSelection(channelId, nextId, vstorage, guildId);
+	setCurrentPrefix(nextId, vstorage, channelId, guildId);
 	return nextId;
 }

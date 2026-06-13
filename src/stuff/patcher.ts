@@ -6,11 +6,15 @@ import {
 } from "@vendetta/metro";
 import { React, ReactNative as RN, i18n } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
+import { findInReactTree } from "@vendetta/utils";
+import type { MutableRefObject } from "react";
 
 import PrefixButton from "../components/PrefixButton";
+import PrefixInputPatch from "../components/PrefixInputPatch";
+import type { ChatInputRef } from "../stuff/applyPrefix";
 import { getChannelContext } from "./channel";
 import { openPrefixPicker } from "./openPrefixPicker";
-import patchSendMessage from "./sendPatch";
+import patchSendMessage, { patchSendButton } from "./sendPatch";
 
 function findChatInputWrapper() {
 	try {
@@ -27,18 +31,27 @@ function findChatInputWrapper() {
 	});
 }
 
-function injectPrefixPill(ret: any) {
+function findChatInputRef(ret: any) {
+	return findInReactTree(ret.props?.children ?? ret, (x: any) => x?.props?.chatInputRef)?.props?.chatInputRef
+		?? findInReactTree(ret.props?.children ?? ret, (x: any) => x?.chatInputRef)?.chatInputRef;
+}
+
+function injectPrefixUI(ret: any) {
 	if (!ret?.props) return;
 
-	const pill = React.createElement(PrefixButton);
+	const inputProps = findChatInputRef(ret) as MutableRefObject<ChatInputRef | undefined> | undefined;
+	const elements = [
+		React.createElement(PrefixButton),
+		inputProps ? React.createElement(PrefixInputPatch, { inputProps }) : null,
+	].filter(Boolean);
 
 	if (Array.isArray(ret.props.children)) {
-		ret.props.children.unshift(pill);
+		ret.props.children.unshift(...elements);
 		return;
 	}
 
 	if (ret.props.children != null) {
-		ret.props.children = [pill, ret.props.children];
+		ret.props.children = [...elements, ret.props.children];
 	}
 }
 
@@ -92,7 +105,7 @@ export default function patcher() {
 						const flat = RN.StyleSheet.flatten(ret.props.style) ?? {};
 						ret.props.style = [flat, { overflow: "visible" as const }];
 					}
-					injectPrefixPill(ret);
+					injectPrefixUI(ret);
 				} catch {}
 				return ret;
 			}),
@@ -104,11 +117,13 @@ export default function patcher() {
 				patches.push(
 					after("type", ChatView, (_, ret) => {
 						try {
+							const inputProps = findChatInputRef(ret) as MutableRefObject<ChatInputRef | undefined> | undefined;
 							return React.createElement(
 								React.Fragment,
 								null,
 								ret,
 								React.createElement(PrefixButton),
+								inputProps ? React.createElement(PrefixInputPatch, { inputProps }) : null,
 							);
 						} catch {
 							return ret;
@@ -120,6 +135,7 @@ export default function patcher() {
 	}
 
 	patchSendLongPress(patches);
+	patchSendButton(patches);
 	patchSendMessage(patches);
 
 	return () => {

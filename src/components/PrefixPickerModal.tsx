@@ -4,12 +4,11 @@ import { Forms } from "@vendetta/ui/components";
 
 import { vstorage } from "..";
 import {
-	getEffectiveSelection,
+	ensurePrefixLoaded,
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
 	selectionSummary,
-	subscribeSelection,
 } from "../settings";
 
 const FormRow = Forms?.FormRow;
@@ -24,14 +23,10 @@ export default function PrefixPickerModal({
 	onPick: (id: string | null) => void;
 }) {
 	useProxy(vstorage);
-	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
-		getEffectiveSelection(vstorage, channelId, guildId),
-	);
+	const selectedId = vstorage.activePrefixId ?? null;
 
 	React.useEffect(() => {
-		setSelectedId(getEffectiveSelection(vstorage, channelId, guildId));
-		if (!channelId) return;
-		return subscribeSelection(channelId, id => setSelectedId(id));
+		ensurePrefixLoaded(channelId ?? null, vstorage, guildId);
 	}, [channelId, guildId]);
 
 	const { favorites, recent, rest } = getMenuSections(vstorage);
@@ -59,10 +54,7 @@ export default function PrefixPickerModal({
 					label={option.label}
 					subLabel={option.id ? getPrefixById(option.id, vstorage)?.prefix : "No prefix added"}
 					trailing={FormRow.Radio ? <FormRow.Radio selected={selectedId === option.id} /> : undefined}
-					onPress={() => {
-						setSelectedId(option.id);
-						onPick(option.id);
-					}}
+					onPress={() => onPick(option.id)}
 				/>
 			))}
 		</RN.ScrollView>

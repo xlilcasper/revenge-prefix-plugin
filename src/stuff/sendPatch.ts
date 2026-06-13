@@ -1,18 +1,34 @@
-import { find, findByProps, findByStoreName } from "@vendetta/metro";
-import { before } from "@vendetta/patcher";
-import { unfreeze } from "@vendetta/utils";
+import { find, findByProps } from "@vendetta/metro";
+import { ReactNative as RN, i18n } from "@vendetta/metro/common";
+import { before, instead } from "@vendetta/patcher";
 
 import { vstorage } from "..";
-import {
-	getPrefixById,
-	getPrefixText,
-	getStoredSelection,
-	normalizeChannelId,
-	setSelection,
-	shouldAutoDisable,
-	shouldSkipMessage,
-} from "../settings";
+import { setCurrentPrefix, shouldAutoDisable } from "../settings";
+import { applyPrefixToMessage, syncOutgoingText } from "./applyPrefix";
 import { getChannelContext } from "./channel";
+
+function getSendLabel() {
+	try {
+		if (i18n?.Messages?.SEND) return i18n.Messages.SEND;
+
+		const { intl, t: intlMap } = findByProps("intl") ?? {};
+		const { runtimeHashMessageKey } = findByProps("runtimeHashMessageKey") ?? {};
+		if (intl && intlMap && runtimeHashMessageKey) {
+			return intl.string(intlMap[runtimeHashMessageKey("SEND")]);
+		}
+	} catch {}
+
+	return null;
+}
+
+function isSendPress(props: Record<string, unknown>) {
+	const onPress = props?.onPress;
+	if (typeof onPress !== "function") return false;
+	if (onPress.name === "handlePressSend") return true;
+
+	const sendLabel = getSendLabel();
+	return Boolean(sendLabel && props?.accessibilityLabel === sendLabel);
+}
 
 function collectSendModules() {
 	const modules = new Set<object>();
@@ -36,10 +52,12 @@ function collectSendModules() {
 	} catch {}
 
 	try {
-		find((mod: { sendMessage?: unknown; editMessage?: unknown }) => {
-			if (typeof mod?.sendMessage === "function" && typeof mod?.editMessage === "function") {
-				add(mod);
-			}
+		add(findByProps("sendMessage", "deleteMessage"));
+	} catch {}
+
+	try {
+		find((mod: { sendMessage?: unknown }) => {
+			if (typeof mod?.sendMessage === "function") add(mod);
 			return false;
 		});
 	} catch {}
@@ -47,96 +65,94 @@ function collectSendModules() {
 	return [...modules];
 }
 
-function resolveGuildId(channelId: string | null) {
-	if (!channelId) return null;
-	const ChannelStore = findByStoreName("ChannelStore");
-	const channel = ChannelStore?.getChannel?.(channelId);
-	return channel?.guild_id ?? null;
+function isMessagePayload(value: unknown): value is Record<string, unknown> {
+	if (!value || typeof value !== "object") return false;
+	const obj = value as Record<string, unknown>;
+	return "content" in obj
+		|| "channel_id" in obj
+		|| "attachments" in obj
+		|| "sticker_ids" in obj
+		|| "tts" in obj;
 }
 
 function resolveSendArgs(args: unknown[]) {
-	let channelId = normalizeChannelId(args[0]);
-	let message = args[1];
 	let messageIndex = 1;
+	let message: unknown = args[1];
 
-	if ((!message || typeof message !== "object") && args[1] && typeof args[1] === "object") {
-		message = args[1];
-		channelId = normalizeChannelId((message as { channel_id?: unknown }).channel_id) ?? channelId;
+	if (isMessagePayload(args[0]) && !isMessagePayload(args[1])) {
+		message = args[0];
+		messageIndex = 0;
 	}
 
-	if (!channelId) {
-		const ctx = getChannelContext();
-		channelId = ctx.channelId;
-	}
-
-	return { channelId, message, messageIndex };
+	return { message, messageIndex };
 }
 
 function resolveEditArgs(args: unknown[]) {
-	let channelId = normalizeChannelId(args[0]);
-	let message = args[2] ?? args[1];
+	const message = args[2] ?? args[1];
 	const messageIndex = args[2] != null ? 2 : 1;
-
-	if (message && typeof message === "object") {
-		channelId = normalizeChannelId((message as { channel_id?: unknown }).channel_id) ?? channelId;
-	}
-
-	if (!channelId) {
-		const ctx = getChannelContext();
-		channelId = ctx.channelId;
-	}
-
-	return { channelId, message, messageIndex };
+	return { message, messageIndex };
 }
 
-function applyPrefixToArgs(args: unknown[], isEdit: boolean) {
-	const { channelId, message, messageIndex } = isEdit
-		? resolveEditArgs(args)
-		: resolveSendArgs(args);
+function applyOutgoingPrefix(args: unknown[], isEdit: boolean) {
+	const { channelId, guildId } = getChannelContext();
 
-	if (!channelId || !message || typeof message !== "object") return;
-
-	const guildId = resolveGuildId(channelId);
-	const selectedId = getStoredSelection(channelId, vstorage, guildId);
-	const entry = getPrefixById(selectedId, vstorage);
-	if (!entry) return;
-
-	const mutableMessage = unfreeze(message as object) as Record<string, unknown>;
-	if (shouldSkipMessage(mutableMessage, vstorage)) {
-		args[messageIndex] = mutableMessage;
-		return;
+	if (!isEdit) {
+		syncOutgoingText(vstorage, channelId);
 	}
 
-	const prefix = getPrefixText(entry, vstorage);
-	const content = typeof mutableMessage.content === "string" ? mutableMessage.content : "";
+	const { message, messageIndex } = isEdit ? resolveEditArgs(args) : resolveSendArgs(args);
+	if (!message || typeof message !== "object") return;
 
-	if (!content.startsWith(prefix)) {
-		mutableMessage.content = prefix + content;
+	args[messageIndex] = applyPrefixToMessage(message as Record<string, unknown>, vstorage);
+
+	if (!isEdit && shouldAutoDisable(vstorage) && channelId) {
+		setCurrentPrefix(null, vstorage, channelId, guildId);
 	}
+}
 
-	args[messageIndex] = mutableMessage;
+export function patchSendButton(patches: (() => void)[]) {
+	const hook = ([props]: [Record<string, unknown>]) => {
+		try {
+			if (!isSendPress(props)) return;
 
-	if (!isEdit && shouldAutoDisable(vstorage)) {
-		setSelection(channelId, null, vstorage, guildId);
+			const onPress = props.onPress as (...args: unknown[]) => unknown;
+			if ((onPress as { __prefixPatched?: boolean }).__prefixPatched) return;
+
+			const wrapped = function (this: unknown, ...args: unknown[]) {
+				syncOutgoingText(vstorage);
+				return onPress.apply(this, args);
+			};
+
+			(wrapped as { __prefixPatched?: boolean }).__prefixPatched = true;
+			props.onPress = wrapped;
+		} catch {}
+	};
+
+	patches.push(before("type", RN.Pressable, hook));
+
+	if (RN.TouchableOpacity) {
+		patches.push(before("type", RN.TouchableOpacity, hook));
 	}
 }
 
 export default function patchSendMessage(patches: (() => void)[]) {
 	for (const Messages of collectSendModules()) {
 		patches.push(
-			before("sendMessage", Messages, args => {
+			instead("sendMessage", Messages, (args, original) => {
 				try {
-					applyPrefixToArgs(args, false);
+					applyOutgoingPrefix(args, false);
 				} catch {}
+				return original(...args);
 			}),
 		);
 
 		if (typeof (Messages as { editMessage?: unknown }).editMessage === "function") {
 			patches.push(
-				before("editMessage", Messages, args => {
+				instead("editMessage", Messages, (args, original) => {
 					try {
-						applyPrefixToArgs(args, true);
+						applyOutgoingPrefix(args, true);
 					} catch {}
+					return original(...args);
 				}),
 			);
 		}
