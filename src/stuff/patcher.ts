@@ -9,10 +9,12 @@ import { after, before } from "@vendetta/patcher";
 import { findInReactTree } from "@vendetta/utils";
 import type { MutableRefObject } from "react";
 
+import { vstorage } from "..";
 import PrefixButton from "../components/PrefixButton";
 import PrefixInputPatch from "../components/PrefixInputPatch";
 import type { ChatInputRef } from "../stuff/applyPrefix";
 import { getChannelContext } from "./channel";
+import { BUILD_ID, prefixifyLog } from "./debug";
 import { openPrefixPicker } from "./openPrefixPicker";
 import patchSendMessage, { patchSendButton } from "./sendPatch";
 
@@ -34,25 +36,6 @@ function findChatInputWrapper() {
 function findChatInputRef(ret: any) {
 	return findInReactTree(ret.props?.children ?? ret, (x: any) => x?.props?.chatInputRef)?.props?.chatInputRef
 		?? findInReactTree(ret.props?.children ?? ret, (x: any) => x?.chatInputRef)?.chatInputRef;
-}
-
-function injectPrefixUI(ret: any) {
-	if (!ret?.props) return;
-
-	const inputProps = findChatInputRef(ret) as MutableRefObject<ChatInputRef | undefined> | undefined;
-	const elements = [
-		React.createElement(PrefixButton),
-		inputProps ? React.createElement(PrefixInputPatch, { inputProps }) : null,
-	].filter(Boolean);
-
-	if (Array.isArray(ret.props.children)) {
-		ret.props.children.unshift(...elements);
-		return;
-	}
-
-	if (ret.props.children != null) {
-		ret.props.children = [...elements, ret.props.children];
-	}
 }
 
 function getSendLabel() {
@@ -95,9 +78,38 @@ function patchSendLongPress(patches: (() => void)[]) {
 
 export default function patcher() {
 	const patches: (() => void)[] = [];
+	const stats = {
+		build: BUILD_ID,
+		chatInputWrapper: false,
+		chatView: false,
+		inputRefFound: false,
+		sendModules: 0,
+	};
+
+	function injectPrefixUI(ret: any) {
+		if (!ret?.props) return;
+
+		const inputProps = findChatInputRef(ret) as MutableRefObject<ChatInputRef | undefined> | undefined;
+		if (inputProps) stats.inputRefFound = true;
+
+		const elements = [
+			React.createElement(PrefixButton),
+			inputProps ? React.createElement(PrefixInputPatch, { inputProps }) : null,
+		].filter(Boolean);
+
+		if (Array.isArray(ret.props.children)) {
+			ret.props.children.unshift(...elements);
+			return;
+		}
+
+		if (ret.props.children != null) {
+			ret.props.children = [...elements, ret.props.children];
+		}
+	}
 
 	const ChatInputGuardWrapper = findChatInputWrapper();
 	if (ChatInputGuardWrapper) {
+		stats.chatInputWrapper = true;
 		patches.push(
 			after("default", ChatInputGuardWrapper, (_, ret) => {
 				try {
@@ -114,10 +126,12 @@ export default function patcher() {
 		try {
 			const ChatView = findByTypeName("ChatView");
 			if (ChatView) {
+				stats.chatView = true;
 				patches.push(
 					after("type", ChatView, (_, ret) => {
 						try {
 							const inputProps = findChatInputRef(ret) as MutableRefObject<ChatInputRef | undefined> | undefined;
+							if (inputProps) stats.inputRefFound = true;
 							return React.createElement(
 								React.Fragment,
 								null,
@@ -136,7 +150,10 @@ export default function patcher() {
 
 	patchSendLongPress(patches);
 	patchSendButton(patches);
-	patchSendMessage(patches);
+	stats.sendModules = patchSendMessage(patches);
+
+	vstorage.debugBootInfo = { ...stats, loadedAt: new Date().toISOString() };
+	if (vstorage.debugLogging) prefixifyLog(vstorage, "onLoad", stats);
 
 	return () => {
 		for (const unpatch of patches) {

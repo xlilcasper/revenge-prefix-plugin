@@ -8,6 +8,12 @@ import { build } from "esbuild";
 const root = import.meta.dirname + "/..";
 const manifest = JSON.parse(await readFile(join(root, "manifest.json"), "utf8"));
 
+let gitBuild = "dev";
+try {
+	const { execSync } = await import("node:child_process");
+	gitBuild = execSync("git rev-parse --short HEAD", { cwd: root, encoding: "utf8" }).trim();
+} catch {}
+
 await mkdir(join(root, "dist"), { recursive: true });
 
 await build({
@@ -15,6 +21,9 @@ await build({
 	bundle: true,
 	outfile: join(root, "dist/index.js"),
 	format: "iife",
+	define: {
+		__PREFIXIFY_BUILD__: JSON.stringify(gitBuild),
+	},
 	supported: {
 		"const-and-let": false,
 	},

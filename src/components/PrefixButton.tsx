@@ -6,11 +6,11 @@ import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { vstorage } from "..";
+import { usePrefixSelection } from "../hooks/usePrefixSelection";
 import { getChannelContext } from "../stuff/channel";
 import { openPrefixPicker } from "../stuff/openPrefixPicker";
 import {
 	cyclePrefix,
-	ensurePrefixLoaded,
 	getPrefixById,
 	selectionSummary,
 } from "../settings";
@@ -55,13 +55,9 @@ const styles = stylesheet.createThemedStyleSheet({
 export default function PrefixButton() {
 	useProxy(vstorage);
 	const { channelId, guildId } = getChannelContext();
-	const selectedId = vstorage.activePrefixId ?? null;
+	const selectedId = usePrefixSelection(channelId, guildId);
 	const current = getPrefixById(selectedId, vstorage);
 	const inputHeight = useInputHeight();
-
-	React.useEffect(() => {
-		ensurePrefixLoaded(channelId, vstorage, guildId);
-	}, [channelId, guildId]);
 
 	const handlePress = () => {
 		if (!channelId) return;

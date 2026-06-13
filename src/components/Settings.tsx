@@ -6,8 +6,8 @@ import { Forms } from "@vendetta/ui/components";
 
 import PrefixEditor from "./PrefixEditor";
 import { vstorage } from "..";
+import { usePrefixSelection } from "../hooks/usePrefixSelection";
 import {
-	ensurePrefixLoaded,
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
@@ -16,6 +16,7 @@ import {
 	setCurrentPrefix,
 } from "../settings";
 import { openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
+import { BUILD_ID, clearDebugLog, copyDebugReport, getDebugLines } from "../stuff/debug";
 
 const FormRow = Forms?.FormRow;
 const FormRadioRow = Forms?.FormRadioRow;
@@ -30,12 +31,7 @@ function ActivePrefixSection() {
 	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
 	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
 	const guildId = channel?.guild_id ?? null;
-	const selectedId = vstorage.activePrefixId ?? null;
-
-	React.useEffect(() => {
-		ensurePrefixLoaded(channelId, vstorage, guildId);
-	}, [channelId, guildId]);
-
+	const selectedId = usePrefixSelection(channelId, guildId);
 	const summary = selectionSummary(selectedId, vstorage);
 
 	if (!FormRow) return null;
@@ -80,6 +76,71 @@ function ActivePrefixSection() {
 					onPress={() => pick(option.id)}
 				/>
 			))}
+		</RN.View>
+	);
+}
+
+function DebugSection() {
+	useProxy(vstorage);
+	const [, refresh] = React.useReducer(x => x + 1, 0);
+	const bootInfo = vstorage.debugBootInfo
+		? JSON.stringify(vstorage.debugBootInfo)
+		: "Reload plugin to capture boot info";
+	const lines = getDebugLines(vstorage);
+
+	if (!FormRow) return null;
+
+	return (
+		<RN.View style={{ paddingVertical: 8 }}>
+			<FormRow label="Debug / logs" subLabel={`Build ${BUILD_ID}. Screenshot this section after reproducing the bug.`} />
+			<FormRow label="Boot info" subLabel={bootInfo} />
+			{FormSwitchRow && (
+				<>
+					<FormSwitchRow
+						label="Debug logging"
+						subLabel="Record prefix decisions when you pick a prefix and send"
+						onValueChange={() => {
+							vstorage.debugLogging = !vstorage.debugLogging;
+							refresh();
+						}}
+						value={Boolean(vstorage.debugLogging)}
+					/>
+					<FormSwitchRow
+						label="Toast on send"
+						subLabel="Show a toast with the finalized message text when sending"
+						onValueChange={() => {
+							vstorage.debugSendToast = !vstorage.debugSendToast;
+							refresh();
+						}}
+						value={Boolean(vstorage.debugSendToast)}
+					/>
+				</>
+			)}
+			<FormRow
+				label="Copy debug log"
+				subLabel="Copies boot info and log lines to your clipboard"
+				onPress={() => {
+					copyDebugReport(vstorage);
+					refresh();
+				}}
+			/>
+			<FormRow
+				label="Clear debug log"
+				onPress={() => {
+					clearDebugLog(vstorage);
+					refresh();
+				}}
+			/>
+			<FormRow label={`Log lines (${lines.length})`} subLabel="Newest first" />
+			<RN.View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+				{lines.length === 0
+					? <RN.Text style={{ fontSize: 12, opacity: 0.7 }}>Enable debug logging, pick Casper, send a message, then check here.</RN.Text>
+					: lines.map((line, index) => (
+						<RN.Text key={index} style={{ fontSize: 11, marginBottom: 6, fontFamily: "monospace" }}>
+							{line}
+						</RN.Text>
+					))}
+			</RN.View>
 		</RN.View>
 	);
 }
@@ -192,6 +253,8 @@ export default function Settings() {
 					/>
 				</RN.View>
 			)}
+
+			<DebugSection />
 		</RN.ScrollView>
 	);
 }

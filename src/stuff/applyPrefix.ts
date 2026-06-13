@@ -21,13 +21,14 @@ export function getRegisteredChatInput() {
 }
 
 /** Sync draft + chat input text to the finalized outgoing content. */
-export function syncOutgoingText(vstorage: PrefixifyStorage, channelId?: string | null) {
+export function syncOutgoingText(vstorage: PrefixifyStorage, channelId?: string | null, source = "draft-sync") {
 	const resolvedChannel = channelId ?? getChannelContext().channelId;
 	if (!resolvedChannel) return;
 
+	const { guildId } = getChannelContext();
 	const DraftStore = findByStoreName("DraftStore");
 	const draft = DraftStore?.getDraft?.(resolvedChannel, 0) ?? "";
-	const { content, applied } = finalizeOutgoingContent(draft, vstorage);
+	const { content, applied } = finalizeOutgoingContent(draft, vstorage, { channelId: resolvedChannel, guildId }, source);
 
 	if (!applied && content === draft) return;
 
@@ -38,15 +39,21 @@ export function syncOutgoingText(vstorage: PrefixifyStorage, channelId?: string 
 	}
 }
 
-export function applyPrefixToMessage(message: Record<string, unknown>, vstorage: PrefixifyStorage) {
-	return finalizeOutgoingMessage(message, vstorage);
+export function applyPrefixToMessage(
+	message: Record<string, unknown>,
+	vstorage: PrefixifyStorage,
+	source = "sendMessage",
+	channelId?: string | null,
+	guildId?: string | null,
+) {
+	return finalizeOutgoingMessage(message, vstorage, source, channelId, guildId);
 }
 
 export function prefixChatInputText(input: ChatInputRef, vstorage: PrefixifyStorage) {
 	registerChatInput(input);
-	syncOutgoingText(vstorage);
+	syncOutgoingText(vstorage, undefined, "chatInput");
 }
 
 export function applyPrefixToDraft(channelId: string, vstorage: PrefixifyStorage) {
-	syncOutgoingText(vstorage, channelId);
+	syncOutgoingText(vstorage, channelId, "sendButton");
 }

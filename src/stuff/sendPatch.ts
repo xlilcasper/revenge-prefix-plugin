@@ -1,9 +1,9 @@
-import { find, findByProps } from "@vendetta/metro";
+import { find, findByProps, findByStoreName } from "@vendetta/metro";
 import { ReactNative as RN, i18n } from "@vendetta/metro/common";
-import { before, instead } from "@vendetta/patcher";
+import { before } from "@vendetta/patcher";
 
 import { vstorage } from "..";
-import { setCurrentPrefix, shouldAutoDisable } from "../settings";
+import { normalizeChannelId, setCurrentPrefix, shouldAutoDisable } from "../settings";
 import { applyPrefixToMessage, syncOutgoingText } from "./applyPrefix";
 import { getChannelContext } from "./channel";
 
@@ -76,25 +76,52 @@ function isMessagePayload(value: unknown): value is Record<string, unknown> {
 }
 
 function resolveSendArgs(args: unknown[]) {
+	let channelId = normalizeChannelId(args[0]);
 	let messageIndex = 1;
 	let message: unknown = args[1];
 
 	if (isMessagePayload(args[0]) && !isMessagePayload(args[1])) {
 		message = args[0];
 		messageIndex = 0;
+		channelId = normalizeChannelId((message as { channel_id?: unknown }).channel_id) ?? channelId;
+	} else if (message && typeof message === "object") {
+		channelId = normalizeChannelId((message as { channel_id?: unknown }).channel_id) ?? channelId;
 	}
 
-	return { message, messageIndex };
+	if (!channelId) {
+		channelId = getChannelContext().channelId;
+	}
+
+	return { channelId, message, messageIndex };
 }
 
 function resolveEditArgs(args: unknown[]) {
+	let channelId = normalizeChannelId(args[0]);
 	const message = args[2] ?? args[1];
 	const messageIndex = args[2] != null ? 2 : 1;
-	return { message, messageIndex };
+
+	if (message && typeof message === "object") {
+		channelId = normalizeChannelId((message as { channel_id?: unknown }).channel_id) ?? channelId;
+	}
+
+	if (!channelId) {
+		channelId = getChannelContext().channelId;
+	}
+
+	return { channelId, message, messageIndex };
+}
+
+function resolveGuildId(channelId: string | null) {
+	if (!channelId) return null;
+	const ChannelStore = findByStoreName("ChannelStore");
+	const channel = ChannelStore?.getChannel?.(channelId);
+	return channel?.guild_id ?? null;
 }
 
 function applyOutgoingPrefix(args: unknown[], isEdit: boolean) {
-	const { channelId, guildId } = getChannelContext();
+	const resolved = isEdit ? resolveEditArgs(args) : resolveSendArgs(args);
+	const { channelId, message, messageIndex } = resolved;
+	const guildId = resolveGuildId(channelId);
 
 	if (!isEdit) {
 		syncOutgoingText(vstorage, channelId);
@@ -103,7 +130,13 @@ function applyOutgoingPrefix(args: unknown[], isEdit: boolean) {
 	const { message, messageIndex } = isEdit ? resolveEditArgs(args) : resolveSendArgs(args);
 	if (!message || typeof message !== "object") return;
 
-	args[messageIndex] = applyPrefixToMessage(message as Record<string, unknown>, vstorage);
+	args[messageIndex] = applyPrefixToMessage(
+		message as Record<string, unknown>,
+		vstorage,
+		isEdit ? "editMessage" : "sendMessage",
+		channelId,
+		guildId,
+	);
 
 	if (!isEdit && shouldAutoDisable(vstorage) && channelId) {
 		setCurrentPrefix(null, vstorage, channelId, guildId);
@@ -136,25 +169,25 @@ export function patchSendButton(patches: (() => void)[]) {
 }
 
 export default function patchSendMessage(patches: (() => void)[]) {
-	for (const Messages of collectSendModules()) {
+	const modules = collectSendModules();
+	for (const Messages of modules) {
 		patches.push(
-			instead("sendMessage", Messages, (args, original) => {
+			before("sendMessage", Messages, args => {
 				try {
 					applyOutgoingPrefix(args, false);
 				} catch {}
-				return original(...args);
 			}),
 		);
 
 		if (typeof (Messages as { editMessage?: unknown }).editMessage === "function") {
 			patches.push(
-				instead("editMessage", Messages, (args, original) => {
+				before("editMessage", Messages, args => {
 					try {
 						applyOutgoingPrefix(args, true);
 					} catch {}
-					return original(...args);
 				}),
 			);
 		}
 	}
+	return modules.length;
 }

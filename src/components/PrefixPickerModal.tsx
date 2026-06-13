@@ -3,8 +3,8 @@ import { useProxy } from "@vendetta/storage";
 import { Forms } from "@vendetta/ui/components";
 
 import { vstorage } from "..";
+import { usePrefixSelection } from "../hooks/usePrefixSelection";
 import {
-	ensurePrefixLoaded,
 	getMenuSections,
 	getPrefixById,
 	menuLabel,
@@ -23,11 +23,7 @@ export default function PrefixPickerModal({
 	onPick: (id: string | null) => void;
 }) {
 	useProxy(vstorage);
-	const selectedId = vstorage.activePrefixId ?? null;
-
-	React.useEffect(() => {
-		ensurePrefixLoaded(channelId ?? null, vstorage, guildId);
-	}, [channelId, guildId]);
+	const selectedId = usePrefixSelection(channelId, guildId);
 
 	const { favorites, recent, rest } = getMenuSections(vstorage);
 	const sections = [

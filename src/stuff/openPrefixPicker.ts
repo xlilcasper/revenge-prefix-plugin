@@ -4,6 +4,7 @@ import { React } from "@vendetta/metro/common";
 import PrefixPickerModal from "../components/PrefixPickerModal";
 import { vstorage } from "..";
 import { getMenuSections, menuLabel, setCurrentPrefix } from "../settings";
+import { prefixifyLog } from "./debug";
 import { canOpenPrefixModal, closePrefixModal, openPrefixModal } from "./modal";
 
 type SimpleActionSheet = (props: {
@@ -102,14 +103,33 @@ function openPicker(
 
 export function openPrefixPicker(channelId: string, guildId?: string | null) {
 	openPicker(
-		id => setCurrentPrefix(id, vstorage, channelId, guildId),
+		id => {
+			setCurrentPrefix(id, vstorage, channelId, guildId);
+			if (vstorage.debugLogging) {
+				prefixifyLog(vstorage, "setCurrentPrefix", {
+					id,
+					channelId,
+					globalSelection: vstorage.globalSelection ?? null,
+					activePrefixId: vstorage.activePrefixId ?? null,
+				});
+			}
+		},
 		channelId,
 		guildId,
 	);
 }
 
 export function openGlobalPrefixPicker() {
-	openPicker(id => setCurrentPrefix(id, vstorage));
+	openPicker(id => {
+		setCurrentPrefix(id, vstorage);
+		if (vstorage.debugLogging) {
+			prefixifyLog(vstorage, "setCurrentPrefix", {
+				id,
+				globalSelection: vstorage.globalSelection ?? null,
+				activePrefixId: vstorage.activePrefixId ?? null,
+			});
+		}
+	});
 }
 
 export function canOpenPrefixPicker() {
