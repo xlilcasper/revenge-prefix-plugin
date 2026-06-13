@@ -13,12 +13,11 @@ import {
 	shouldSkipMessage,
 } from "../settings";
 
-const Messages = findByProps("sendMessage", "editMessage");
-const ChatInputGuardWrapper = findByName("ChatInputGuardWrapper", false);
-const ChannelStore = findByStoreName("ChannelStore");
-
 export default function patcher() {
 	const patches: (() => void)[] = [];
+	const Messages = findByProps("sendMessage", "editMessage");
+	const ChatInputGuardWrapper = findByName("ChatInputGuardWrapper", false);
+	const ChannelStore = findByStoreName("ChannelStore");
 
 	if (ChatInputGuardWrapper) {
 		patches.push(
@@ -42,7 +41,7 @@ export default function patcher() {
 				const message = args[1];
 				if (!channelId || !message) return;
 
-				const channel = ChannelStore.getChannel(channelId);
+				const channel = ChannelStore?.getChannel?.(channelId);
 				const guildId = channel?.guild_id ?? null;
 				const selectedId = getStoredSelection(channelId, vstorage, guildId);
 				const entry = getPrefixById(selectedId, vstorage);

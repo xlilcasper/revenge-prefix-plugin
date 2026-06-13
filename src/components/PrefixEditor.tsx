@@ -1,17 +1,12 @@
-import { React, ReactNative as RN } from "@vendetta/metro/common";
+import { ReactNative as RN } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { Forms } from "@vendetta/ui/components";
 
-import { hideActionSheet, ActionSheet } from "./ActionSheet";
 import { vstorage } from "..";
 import {
 	DEFAULT_PREFIXES,
-	getMenuSections,
-	getStoredSelection,
-	menuLabel,
 	newPrefixId,
 	type PrefixEntry,
-	setSelection,
 } from "../settings";
 
 const { FormRow, FormSwitchRow } = Forms;
@@ -93,47 +88,5 @@ export default function PrefixEditor() {
 			<FormRow label="Add prefix" onPress={addEntry} />
 			<FormRow label="Reset to defaults" onPress={resetDefaults} />
 		</RN.View>
-	);
-}
-
-export function PrefixPickerHost(props: { channelId: string; guildId?: string | null }) {
-	return (
-		<ActionSheet title="Message Prefix">
-			<PrefixPickerSheet {...props} />
-		</ActionSheet>
-	);
-}
-
-export function PrefixPickerSheet({
-	channelId,
-	guildId,
-}: {
-	channelId: string;
-	guildId?: string | null;
-}) {
-	useProxy(vstorage);
-
-	const selectedId = getStoredSelection(channelId, vstorage, guildId);
-	const { favorites, recent, rest } = getMenuSections(vstorage);
-
-	const makeRow = (label: string, id: string | null) => (
-		<FormRow
-			key={id ?? "disabled"}
-			label={label}
-			leading={<FormRow.Radio selected={selectedId === id} />}
-			onPress={() => {
-				setSelection(channelId, id, vstorage, guildId);
-				hideActionSheet();
-			}}
-		/>
-	);
-
-	return (
-		<RN.ScrollView style={{ paddingBottom: 24 }}>
-			{makeRow("Disabled", null)}
-			{favorites.map(entry => makeRow(menuLabel(entry, "favorite"), entry.id))}
-			{recent.map(entry => makeRow(menuLabel(entry, "recent"), entry.id))}
-			{rest.map(entry => makeRow(menuLabel(entry), entry.id))}
-		</RN.ScrollView>
 	);
 }

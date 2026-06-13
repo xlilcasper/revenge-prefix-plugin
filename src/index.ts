@@ -7,16 +7,18 @@ import { ensureSettings, type PrefixifyStorage } from "./settings";
 
 export const vstorage = storage as PrefixifyStorage;
 
-const unpatch = patcher();
+let unpatch: (() => void) | null = null;
 
 export function onLoad() {
 	ensureSettings(vstorage);
 	startShiftTracking();
+	unpatch = patcher();
 }
 
 export function onUnload() {
 	stopShiftTracking();
-	unpatch();
+	unpatch?.();
+	unpatch = null;
 }
 
 export const settings = Settings;

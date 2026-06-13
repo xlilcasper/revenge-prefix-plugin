@@ -3,17 +3,13 @@ import { React, ReactNative as RN, stylesheet } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { semanticColors } from "@vendetta/ui";
 
-import { ActionSheet } from "./ActionSheet";
-import { PrefixPickerHost } from "./PrefixEditor";
 import { vstorage } from "..";
+import { openPrefixPicker } from "../stuff/openPrefixPicker";
 import {
 	getPrefixById,
 	getStoredSelection,
 	subscribeSelection,
 } from "../settings";
-
-const SelectedChannelStore = findByStoreName("SelectedChannelStore");
-const ChannelStore = findByStoreName("ChannelStore");
 
 const styles = stylesheet.createThemedStyleSheet({
 	button: {
@@ -41,12 +37,14 @@ const styles = stylesheet.createThemedStyleSheet({
 });
 
 function useChannelSelection() {
-	const channelId = SelectedChannelStore.getChannelId();
-	const channel = channelId ? ChannelStore.getChannel(channelId) : null;
+	const SelectedChannelStore = findByStoreName("SelectedChannelStore");
+	const ChannelStore = findByStoreName("ChannelStore");
+	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
+	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
 	const guildId = channel?.guild_id ?? null;
 
 	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
-		getStoredSelection(channelId, vstorage, guildId),
+		channelId ? getStoredSelection(channelId, vstorage, guildId) : null,
 	);
 
 	React.useEffect(() => {
@@ -67,7 +65,7 @@ export default function PrefixButton() {
 
 	return (
 		<RN.Pressable
-			onPress={() => ActionSheet.open(PrefixPickerHost, { channelId, guildId })}
+			onPress={() => openPrefixPicker(channelId, guildId)}
 			style={styles.button}
 			accessibilityLabel={current ? `Prefix: ${current.label}` : "Select message prefix"}
 		>
