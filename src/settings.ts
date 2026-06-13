@@ -25,7 +25,6 @@ export const DEFAULT_PREFIXES: PrefixEntry[] = [
 ];
 
 const MAX_RECENTS = 5;
-const sessionSelections = new Map<string, string>();
 
 type SelectionListener = (id: string | null) => void;
 const selectionListeners = new Map<string, Set<SelectionListener>>();
@@ -39,6 +38,12 @@ export function subscribeSelection(channelId: string, listener: SelectionListene
 
 function notifySelection(channelId: string, id: string | null) {
 	selectionListeners.get(channelId)?.forEach(fn => fn(id));
+}
+
+function notifyAllSelections(id: string | null) {
+	for (const listeners of selectionListeners.values()) {
+		listeners.forEach(fn => fn(id));
+	}
 }
 
 export function newPrefixId() {
@@ -55,6 +60,9 @@ export function ensureSettings(vstorage: PrefixifyStorage) {
 	}
 	if (!vstorage.guildSelections || typeof vstorage.guildSelections !== "object") {
 		vstorage.guildSelections = {};
+	}
+	if (!vstorage.sessionSelections || typeof vstorage.sessionSelections !== "object") {
+		vstorage.sessionSelections = {};
 	}
 	if (typeof vstorage.prefixFormat !== "string" || !vstorage.prefixFormat) {
 		vstorage.prefixFormat = "**[{name}]:** ";
@@ -87,6 +95,7 @@ export interface PrefixifyStorage {
 	globalSelection: string | null;
 	channelSelections: Record<string, string>;
 	guildSelections: Record<string, string>;
+	sessionSelections: Record<string, string>;
 	recentIds: string[];
 }
 
@@ -158,7 +167,7 @@ export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage
 	if (loc?.type === "guild") return vstorage.guildSelections[loc.key] ?? null;
 	if (loc?.type === "global") return vstorage.globalSelection ?? null;
 
-	return sessionSelections.get(channelId) ?? null;
+	return vstorage.sessionSelections[channelId] ?? null;
 }
 
 export function getEffectiveSelection(vstorage: PrefixifyStorage, channelId?: string | null, guildId?: string | null) {
@@ -177,17 +186,26 @@ export function setStoredSelection(
 	const loc = storageKey(channelId, guildId, vstorage);
 
 	if (loc?.type === "channel") {
-		if (id) vstorage.channelSelections[loc.key] = id;
-		else delete vstorage.channelSelections[loc.key];
+		const next = { ...vstorage.channelSelections };
+		if (id) next[loc.key] = id;
+		else delete next[loc.key];
+		vstorage.channelSelections = next;
 	} else if (loc?.type === "guild") {
-		if (id) vstorage.guildSelections[loc.key] = id;
-		else delete vstorage.guildSelections[loc.key];
+		const next = { ...vstorage.guildSelections };
+		if (id) next[loc.key] = id;
+		else delete next[loc.key];
+		vstorage.guildSelections = next;
 	} else if (loc?.type === "global") {
 		if (id) vstorage.globalSelection = id;
 		else delete vstorage.globalSelection;
+		notifyAllSelections(id);
+		notifySelection(channelId, id);
+		return;
 	} else if (channelId) {
-		if (id) sessionSelections.set(channelId, id);
-		else sessionSelections.delete(channelId);
+		const next = { ...vstorage.sessionSelections };
+		if (id) next[channelId] = id;
+		else delete next[channelId];
+		vstorage.sessionSelections = next;
 	}
 
 	notifySelection(channelId, id);
@@ -197,6 +215,7 @@ export function setGlobalSelection(id: string | null, vstorage: PrefixifyStorage
 	ensureSettings(vstorage);
 	if (id) vstorage.globalSelection = id;
 	else delete vstorage.globalSelection;
+	notifyAllSelections(id);
 }
 
 export function setSelection(

@@ -81,10 +81,16 @@ function openActionSheetPicker(
 	}
 }
 
-function openModalPicker(onPick: (id: string | null) => void) {
+function openModalPicker(
+	onPick: (id: string | null) => void,
+	channelId?: string | null,
+	guildId?: string | null,
+) {
 	return openPrefixModal(
 		"Message Prefix",
 		React.createElement(PrefixPickerModal, {
+			channelId,
+			guildId,
 			onPick: id => {
 				onPick(id);
 				closePrefixModal();
@@ -93,13 +99,17 @@ function openModalPicker(onPick: (id: string | null) => void) {
 	);
 }
 
-function openPicker(onPick: (id: string | null) => void) {
-	if (openModalPicker(onPick)) return true;
+function openPicker(
+	onPick: (id: string | null) => void,
+	channelId?: string | null,
+	guildId?: string | null,
+) {
+	if (openModalPicker(onPick, channelId, guildId)) return true;
 	return openActionSheetPicker("Message Prefix", undefined, onPick);
 }
 
 export function openPrefixPicker(channelId: string, guildId?: string | null) {
-	openPicker(id => setSelection(channelId, id, vstorage, guildId));
+	openPicker(id => setSelection(channelId, id, vstorage, guildId), channelId, guildId);
 }
 
 export function openGlobalPrefixPicker() {

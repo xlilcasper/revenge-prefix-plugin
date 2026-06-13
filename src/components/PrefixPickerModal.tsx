@@ -1,4 +1,4 @@
-import { ReactNative as RN } from "@vendetta/metro/common";
+import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { Forms } from "@vendetta/ui/components";
 
@@ -9,18 +9,22 @@ import {
 	getPrefixById,
 	menuLabel,
 } from "../settings";
-import { getChannelContext } from "../stuff/channel";
 
 const FormRow = Forms?.FormRow;
 
 export default function PrefixPickerModal({
+	channelId,
+	guildId,
 	onPick,
 }: {
+	channelId?: string | null;
+	guildId?: string | null;
 	onPick: (id: string | null) => void;
 }) {
 	useProxy(vstorage);
-	const { channelId, guildId } = getChannelContext();
-	const selectedId = getEffectiveSelection(vstorage, channelId, guildId);
+	const [selectedId, setSelectedId] = React.useState<string | null>(() =>
+		getEffectiveSelection(vstorage, channelId, guildId),
+	);
 	const { favorites, recent, rest } = getMenuSections(vstorage);
 	const sections = [
 		{ label: "Disabled", id: null as string | null },
@@ -45,7 +49,10 @@ export default function PrefixPickerModal({
 					label={option.label}
 					subLabel={option.id ? getPrefixById(option.id, vstorage)?.prefix : "No prefix added"}
 					trailing={FormRow.Radio ? <FormRow.Radio selected={selectedId === option.id} /> : undefined}
-					onPress={() => onPick(option.id)}
+					onPress={() => {
+						setSelectedId(option.id);
+						onPick(option.id);
+					}}
 				/>
 			))}
 		</RN.ScrollView>
