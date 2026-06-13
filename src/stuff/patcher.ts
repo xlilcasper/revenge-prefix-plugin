@@ -22,84 +22,80 @@ import {
 	shouldSkipMessage,
 } from "../settings";
 
-function injectIntoChatTree(ret: any) {
-	const hasInput = findInReactTree(
-		ret,
-		x => x?.chatInputRef || x?.props?.chatInputRef,
-	);
-	if (!hasInput) return false;
+function findChatInputWrapper() {
+	try {
+		const byName = findByName("ChatInputGuardWrapper", false);
+		if (byName) return byName;
+	} catch {}
+
+	return find(m => {
+		const name = m?.default?.type?.displayName
+			?? m?.default?.displayName
+			?? m?.type?.displayName
+			?? "";
+		return name === "ChatInputGuardWrapper" || /ChatInput.*Wrapper/i.test(name);
+	});
+}
+
+function injectPrefixPill(ret: any) {
+	if (!ret?.props) return;
 
 	const pill = React.createElement(PrefixButton);
-	const children = ret?.props?.children;
 
-	if (Array.isArray(children)) {
-		children.unshift(pill);
-		return true;
+	if (Array.isArray(ret.props.children)) {
+		ret.props.children.unshift(pill);
+		return;
 	}
 
 	const row = findInReactTree(
-		ret,
+		ret.props.children,
 		x => x?.type?.displayName === "View" && Array.isArray(x.props?.children),
 	);
 
 	if (row?.props?.children) {
 		row.props.children.unshift(pill);
-		return true;
+		return;
 	}
 
-	if (children != null) {
-		ret.props.children = [pill, children];
-		return true;
+	if (ret.props.children != null) {
+		ret.props.children = [pill, ret.props.children];
 	}
-
-	return false;
-}
-
-function findChatInputWrapper() {
-	return findByName("ChatInputGuardWrapper", false)
-		?? find(m => m?.default?.type?.displayName === "ChatInputGuardWrapper")
-		?? find(m => {
-			const name = m?.default?.type?.displayName ?? m?.type?.displayName ?? "";
-			return /ChatInput.*Wrapper/i.test(name);
-		});
 }
 
 export default function patcher() {
 	const patches: (() => void)[] = [];
 
-	try {
-		const ChatView = findByTypeName("ChatView");
-		if (ChatView) {
-			patches.push(
-				after("type", ChatView, (_, ret) => {
-					try {
-						return React.createElement(
-							React.Fragment,
-							null,
-							ret,
-							React.createElement(PrefixButton),
-						);
-					} catch {
-						return ret;
-					}
-				}),
-			);
-		}
-	} catch {}
-
-	try {
-		const ChatInputGuardWrapper = findChatInputWrapper();
-		if (ChatInputGuardWrapper) {
-			patches.push(
-				after("default", ChatInputGuardWrapper, (_, ret) => {
-					try {
-						injectIntoChatTree(ret);
-					} catch {}
-					return ret;
-				}),
-			);
-		}
-	} catch {}
+	const ChatInputGuardWrapper = findChatInputWrapper();
+	if (ChatInputGuardWrapper) {
+		patches.push(
+			after("default", ChatInputGuardWrapper, (_, ret) => {
+				try {
+					injectPrefixPill(ret);
+				} catch {}
+				return ret;
+			}),
+		);
+	} else {
+		try {
+			const ChatView = findByTypeName("ChatView");
+			if (ChatView) {
+				patches.push(
+					after("type", ChatView, (_, ret) => {
+						try {
+							return React.createElement(
+								React.Fragment,
+								null,
+								ret,
+								React.createElement(PrefixButton),
+							);
+						} catch {
+							return ret;
+						}
+					}),
+				);
+			}
+		} catch {}
+	}
 
 	try {
 		const sendLabel = i18n?.Messages?.SEND;
@@ -107,10 +103,10 @@ export default function patcher() {
 			patches.push(
 				before("type", RN.Pressable, ([props]) => {
 					try {
-						if (
-							props?.accessibilityLabel !== sendLabel
-							|| props?.onPress?.name !== "handlePressSend"
-						) {
+						if (props?.accessibilityLabel !== sendLabel) return;
+
+						const pressName = props?.onPress?.name;
+						if (pressName !== "handlePressSend" && props?.testID !== "send-button") {
 							return;
 						}
 
