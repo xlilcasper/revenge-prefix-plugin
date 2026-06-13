@@ -14,9 +14,9 @@ A [Revenge](https://github.com/revenge-mod/revenge-bundle) port of the [Vencord 
 
 On mobile, the reliable ways to change prefix are:
 
-1. **Long-press Send** in any chat to open the prefix menu
-2. **Settings (wrench) → Choose prefix** to open the same menu
-3. **Chat pill** (if visible): tap the **Off** / prefix label above the input
+1. **Tap the pill** in chat to cycle prefixes (shows a toast with the new selection)
+2. **Hold the pill** or **long-press Send** to open the full prefix list
+3. **Settings (wrench)** → tap a name under **Select prefix**, or use **Open prefix list**
 
 ## Install
 

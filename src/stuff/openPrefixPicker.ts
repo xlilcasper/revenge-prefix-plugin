@@ -1,6 +1,7 @@
 import { findByProps } from "@vendetta/metro";
+import { React } from "@vendetta/metro/common";
 
-import PrefixPickerSheet from "../components/PrefixPickerSheet";
+import PrefixPickerModal from "../components/PrefixPickerModal";
 import { vstorage } from "..";
 import {
 	getMenuSections,
@@ -8,6 +9,7 @@ import {
 	setGlobalSelection,
 	setSelection,
 } from "../settings";
+import { canOpenPrefixModal, closePrefixModal, openPrefixModal } from "./modal";
 
 type SimpleActionSheet = (props: {
 	key: string;
@@ -24,14 +26,11 @@ function getShowSimpleActionSheet(): SimpleActionSheet | null {
 	}
 }
 
-function getLazySheetApi() {
+function getHideActionSheet() {
 	try {
-		return findByProps("openLazy", "hideActionSheet") as {
-			openLazy?: (component: Promise<{ default: unknown }>, key: string, props?: object) => void;
-			hideActionSheet?: () => void;
-		} | null;
+		return findByProps("openLazy", "hideActionSheet")?.hideActionSheet as (() => void) | undefined;
 	} catch {
-		return null;
+		return undefined;
 	}
 }
 
@@ -57,27 +56,14 @@ function buildSimpleOptions(onPick: (id: string | null) => void, hide?: () => vo
 	return options;
 }
 
-function openLazyPicker(onPick: (id: string | null) => void) {
-	const lazySheet = getLazySheetApi();
-	if (!lazySheet?.openLazy) return false;
-
-	const onClose = () => lazySheet.hideActionSheet?.();
-	lazySheet.openLazy(
-		Promise.resolve({ default: PrefixPickerSheet }),
-		"PrefixifyPicker",
-		{ onPick, onClose },
-	);
-	return true;
-}
-
-function openSimplePicker(
+function openActionSheetPicker(
 	title: string,
 	subtitle: string | undefined,
 	onPick: (id: string | null) => void,
 ) {
 	const showSimpleActionSheet = getShowSimpleActionSheet();
-	const hideActionSheet = getLazySheetApi()?.hideActionSheet;
-	if (!showSimpleActionSheet) return openLazyPicker(onPick);
+	const hideActionSheet = getHideActionSheet();
+	if (!showSimpleActionSheet) return false;
 
 	try {
 		showSimpleActionSheet({
@@ -91,26 +77,35 @@ function openSimplePicker(
 		});
 		return true;
 	} catch {
-		return openLazyPicker(onPick);
+		return false;
 	}
 }
 
-export function openPrefixPicker(channelId: string, guildId?: string | null) {
-	openSimplePicker(
+function openModalPicker(onPick: (id: string | null) => void) {
+	return openPrefixModal(
 		"Message Prefix",
-		undefined,
-		id => setSelection(channelId, id, vstorage, guildId),
+		React.createElement(PrefixPickerModal, {
+			onPick: id => {
+				onPick(id);
+				closePrefixModal();
+			},
+		}),
 	);
+}
+
+function openPicker(onPick: (id: string | null) => void) {
+	if (openModalPicker(onPick)) return true;
+	return openActionSheetPicker("Message Prefix", undefined, onPick);
+}
+
+export function openPrefixPicker(channelId: string, guildId?: string | null) {
+	openPicker(id => setSelection(channelId, id, vstorage, guildId));
 }
 
 export function openGlobalPrefixPicker() {
-	openSimplePicker(
-		"Message Prefix",
-		"Used when no channel is open or persistence is global",
-		id => setGlobalSelection(id, vstorage),
-	);
+	openPicker(id => setGlobalSelection(id, vstorage));
 }
 
 export function canOpenPrefixPicker() {
-	return Boolean(getShowSimpleActionSheet() || getLazySheetApi()?.openLazy);
+	return canOpenPrefixModal() || Boolean(getShowSimpleActionSheet());
 }

@@ -249,3 +249,26 @@ export function selectionSummary(id: string | null, vstorage: PrefixifyStorage) 
 	if (!entry) return "Off";
 	return `${entry.label} → ${getPrefixText(entry, vstorage)}`;
 }
+
+export function getPrefixCycleOrder(vstorage: PrefixifyStorage) {
+	const { favorites, recent, rest } = getMenuSections(vstorage);
+	return [
+		null as string | null,
+		...favorites.map(p => p.id),
+		...recent.map(p => p.id),
+		...rest.map(p => p.id),
+	];
+}
+
+export function cyclePrefix(
+	channelId: string,
+	vstorage: PrefixifyStorage,
+	guildId?: string | null,
+) {
+	const order = getPrefixCycleOrder(vstorage);
+	const current = getStoredSelection(channelId, vstorage, guildId);
+	const index = order.findIndex(id => id === current);
+	const nextId = order[(index + 1) % order.length];
+	setSelection(channelId, nextId, vstorage, guildId);
+	return nextId;
+}

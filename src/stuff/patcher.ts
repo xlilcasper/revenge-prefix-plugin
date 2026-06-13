@@ -97,6 +97,10 @@ export default function patcher() {
 		patches.push(
 			after("default", ChatInputGuardWrapper, (_, ret) => {
 				try {
+					if (ret?.props?.style != null) {
+						const flat = RN.StyleSheet.flatten(ret.props.style) ?? {};
+						ret.props.style = [flat, { overflow: "visible" as const }];
+					}
 					injectPrefixPill(ret);
 				} catch {}
 				return ret;

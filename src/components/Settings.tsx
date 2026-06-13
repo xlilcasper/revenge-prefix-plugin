@@ -16,6 +16,7 @@ import {
 	setGlobalSelection,
 	setSelection,
 } from "../settings";
+import { openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
 
 const FormRow = Forms?.FormRow;
 const FormRadioRow = Forms?.FormRadioRow;
@@ -52,10 +53,19 @@ function ActivePrefixSection() {
 		<RN.View>
 			<FormRow
 				label="Quick change in chat"
-				subLabel="Tap the prefix pill above the input, or long-press Send"
+				subLabel="Tap the pill to cycle. Hold the pill or Send button for the full list."
 				leading={FormRow.Icon ? <FormRow.Icon source={getAssetIDByName("PencilIcon")} /> : undefined}
 			/>
 			<FormRow label="Current prefix" subLabel={summary} />
+			<FormRow
+				label="Open prefix list"
+				subLabel="Full-screen picker"
+				onPress={() => {
+					if (channelId) openPrefixPicker(channelId, guildId);
+					else openGlobalPrefixPicker();
+				}}
+				trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
+			/>
 			<FormRow label="Select prefix" subLabel="Tap a name below" />
 			{sections.map(option => (
 				<FormRow

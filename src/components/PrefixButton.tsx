@@ -2,13 +2,17 @@ import { findByProps } from "@vendetta/metro";
 import { React, ReactNative as RN, stylesheet } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { semanticColors } from "@vendetta/ui";
+import { getAssetIDByName } from "@vendetta/ui/assets";
+import { showToast } from "@vendetta/ui/toasts";
 
 import { vstorage } from "..";
 import { getChannelContext } from "../stuff/channel";
 import { openPrefixPicker } from "../stuff/openPrefixPicker";
 import {
+	cyclePrefix,
 	getPrefixById,
 	getStoredSelection,
+	selectionSummary,
 	subscribeSelection,
 } from "../settings";
 
@@ -18,22 +22,19 @@ const useInputHeight = findByProps("useChatInputContainerHeight")?.useChatInputC
 	};
 
 const styles = stylesheet.createThemedStyleSheet({
-	androidRipple: {
-		color: semanticColors.ANDROID_RIPPLE,
-		cornerRadius: 8,
-	} as any,
 	container: {
 		flexDirection: "row-reverse",
 		position: "absolute",
 		left: 0,
-		zIndex: 10,
-		elevation: 10,
+		zIndex: 100,
+		elevation: 100,
 	},
 	button: {
 		borderRadius: 8,
 		paddingHorizontal: 10,
-		paddingVertical: 6,
-		minWidth: 44,
+		paddingVertical: 8,
+		minWidth: 48,
+		minHeight: 36,
 		maxWidth: 96,
 		marginLeft: 8,
 		backgroundColor: semanticColors.BACKGROUND_SECONDARY_ALT,
@@ -68,31 +69,44 @@ function useChannelSelection() {
 		return subscribeSelection(channelId, setSelectedId);
 	}, [channelId, guildId]);
 
-	return { selectedId };
+	return { selectedId, channelId, guildId };
 }
 
 export default function PrefixButton() {
 	useProxy(vstorage);
-	const { selectedId } = useChannelSelection();
+	const { selectedId, channelId, guildId } = useChannelSelection();
 	const current = getPrefixById(selectedId, vstorage);
 	const inputHeight = useInputHeight();
 
+	const handlePress = () => {
+		if (!channelId) return;
+		const nextId = cyclePrefix(channelId, vstorage, guildId);
+		showToast(
+			selectionSummary(nextId, vstorage),
+			getAssetIDByName("PencilIcon"),
+		);
+	};
+
+	const handleLongPress = () => {
+		if (!channelId) return;
+		openPrefixPicker(channelId, guildId);
+	};
+
 	return (
 		<RN.View
-			pointerEvents="box-none"
+			collapsable={false}
+			pointerEvents="auto"
 			style={[styles.container, { bottom: inputHeight + 8 }]}
 		>
-			<RN.Pressable
-				android_ripple={styles.androidRipple}
-				hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-				onPress={() => {
-					const { channelId, guildId } = getChannelContext();
-					if (!channelId) return;
-					openPrefixPicker(channelId, guildId);
-				}}
-				pointerEvents="box-only"
+			<RN.TouchableOpacity
+				activeOpacity={0.75}
+				onPress={handlePress}
+				onLongPress={handleLongPress}
+				delayLongPress={450}
+				hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
 				style={styles.button}
 				accessibilityLabel={current ? `Prefix: ${current.label}` : "Select message prefix"}
+				accessibilityHint="Tap to cycle prefix. Hold to open prefix list."
 				accessibilityRole="button"
 			>
 				{current
@@ -102,7 +116,7 @@ export default function PrefixButton() {
 						</RN.Text>
 					)
 					: <RN.Text style={styles.off}>Off</RN.Text>}
-			</RN.Pressable>
+			</RN.TouchableOpacity>
 		</RN.View>
 	);
 }
