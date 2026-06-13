@@ -12,10 +12,7 @@ import {
 	subscribeSelection,
 } from "../settings";
 
-const useInputHeight = findByProps("useChatInputContainerHeight")?.useChatInputContainerHeight
-	?? function useInputHeightFallback() {
-		return 52;
-	};
+const PILL_HEIGHT = 36;
 
 const styles = stylesheet.createThemedStyleSheet({
 	androidRipple: {
@@ -25,7 +22,8 @@ const styles = stylesheet.createThemedStyleSheet({
 	container: {
 		flexDirection: "row",
 		position: "absolute",
-		left: 8,
+		left: 0,
+		top: -(PILL_HEIGHT + 4),
 		zIndex: 3,
 	},
 	button: {
@@ -34,6 +32,7 @@ const styles = stylesheet.createThemedStyleSheet({
 		paddingVertical: 6,
 		minWidth: 44,
 		maxWidth: 96,
+		marginLeft: 8,
 		backgroundColor: semanticColors.BACKGROUND_SECONDARY_ALT,
 		alignItems: "center",
 		justifyContent: "center",
@@ -73,13 +72,9 @@ export default function PrefixButton() {
 	useProxy(vstorage);
 	const { selectedId } = useChannelSelection();
 	const current = getPrefixById(selectedId, vstorage);
-	const inputHeight = useInputHeight();
 
 	return (
-		<RN.View
-			pointerEvents="box-none"
-			style={[styles.container, { bottom: inputHeight + 8 }]}
-		>
+		<RN.View pointerEvents="box-none" style={styles.container}>
 			<RN.Pressable
 				android_ripple={styles.androidRipple}
 				onPress={() => {

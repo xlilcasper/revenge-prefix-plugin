@@ -7,13 +7,11 @@ import { Forms } from "@vendetta/ui/components";
 import PrefixEditor from "./PrefixEditor";
 import { vstorage } from "..";
 import {
-	getMenuSections,
-	getPrefixById,
-	getStoredSelection,
-	menuLabel,
+	getEffectiveSelection,
 	PersistMode,
-	setSelection,
+	selectionSummary,
 } from "../settings";
+import { canOpenPrefixPicker, openGlobalPrefixPicker, openPrefixPicker } from "../stuff/openPrefixPicker";
 
 const FormRow = Forms?.FormRow;
 const FormRadioRow = Forms?.FormRadioRow;
@@ -21,48 +19,48 @@ const FormSwitchRow = Forms?.FormSwitchRow;
 const FormInput = Forms?.FormInput;
 
 function ActivePrefixSection() {
+	useProxy(vstorage);
+
 	const SelectedChannelStore = findByStoreName("SelectedChannelStore");
 	const ChannelStore = findByStoreName("ChannelStore");
 	const channelId = SelectedChannelStore?.getChannelId?.() ?? null;
 	const channel = channelId && ChannelStore ? ChannelStore.getChannel(channelId) : null;
 	const guildId = channel?.guild_id ?? null;
-	const selectedId = channelId
-		? getStoredSelection(channelId, vstorage, guildId)
-		: (vstorage.globalSelection ?? null);
+	const selectedId = getEffectiveSelection(vstorage, channelId, guildId);
+	const summary = selectionSummary(selectedId, vstorage);
+	const pickerAvailable = canOpenPrefixPicker();
 
-	if (!FormRow || !FormRadioRow) return null;
-
-	const { favorites, recent, rest } = getMenuSections(vstorage);
-	const sections = [
-		{ label: "Disabled", id: null as string | null },
-		...favorites.map(entry => ({ label: menuLabel(entry, "favorite"), id: entry.id })),
-		...recent.map(entry => ({ label: menuLabel(entry, "recent"), id: entry.id })),
-		...rest.map(entry => ({ label: menuLabel(entry), id: entry.id })),
-	];
+	if (!FormRow) return null;
 
 	return (
 		<RN.View>
 			<FormRow
-				label="Active prefix"
-				subLabel={channelId
-					? "Applies to the channel you currently have open"
-					: "Open a chat to target a channel, or use global persistence"}
+				label="Quick change in chat"
+				subLabel="Long-press the Send button to open the prefix menu"
+				leading={FormRow.Icon ? <FormRow.Icon source={getAssetIDByName("PencilIcon")} /> : undefined}
 			/>
-			{sections.map(option => (
-				<FormRadioRow
-					key={option.id ?? "disabled"}
-					label={option.label}
-					subLabel={option.id ? getPrefixById(option.id, vstorage)?.prefix : "No prefix added"}
-					onPress={() => {
-						if (channelId) setSelection(channelId, option.id, vstorage, guildId);
-						else if (option.id) vstorage.globalSelection = option.id;
-						else delete vstorage.globalSelection;
-					}}
-					trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
-					selected={selectedId === option.id}
-					style={{ marginHorizontal: 12 }}
+			<FormRow
+				label="Current prefix"
+				subLabel={summary}
+			/>
+			<FormRow
+				label="Choose prefix"
+				subLabel={channelId
+					? "Opens a menu for the channel you have open"
+					: "Opens a menu for your global default"}
+				onPress={() => {
+					if (!pickerAvailable) return;
+					if (channelId) openPrefixPicker(channelId, guildId);
+					else openGlobalPrefixPicker();
+				}}
+				trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
+			/>
+			{!pickerAvailable && (
+				<FormRow
+					label="Prefix menu unavailable"
+					subLabel="Update Revenge or reinstall the plugin if this persists"
 				/>
-			))}
+			)}
 		</RN.View>
 	);
 }
@@ -109,7 +107,8 @@ export default function Settings() {
 				{FormRadioRow && (
 					<>
 						<FormRadioRow
-							label="Don't remember"
+							label="This session only"
+							subLabel="Resets when you restart Discord"
 							onPress={() => (vstorage.persistMode = PersistMode.None)}
 							trailing={FormRow.Arrow ? <FormRow.Arrow /> : undefined}
 							selected={vstorage.persistMode === PersistMode.None}
@@ -144,21 +143,15 @@ export default function Settings() {
 				<RN.View style={{ paddingVertical: 8 }}>
 					<FormSwitchRow
 						label="Auto-disable after send"
-						subLabel="Automatically disable the prefix after sending one message"
+						subLabel="Turn the prefix off after sending one message"
 						onValueChange={() => (vstorage.autoDisable = !vstorage.autoDisable)}
 						value={vstorage.autoDisable}
 					/>
 					<FormSwitchRow
-						label="Sticky mode"
-						subLabel="Keep prefix enabled after sending"
+						label="Stay on after send"
+						subLabel="Keep the prefix enabled for every message"
 						onValueChange={() => (vstorage.stickyMode = !vstorage.stickyMode)}
 						value={vstorage.stickyMode}
-					/>
-					<FormSwitchRow
-						label="Shift to keep"
-						subLabel="Hold Shift while sending to keep the prefix enabled"
-						onValueChange={() => (vstorage.shiftToKeep = !vstorage.shiftToKeep)}
-						value={vstorage.shiftToKeep}
 					/>
 					<FormSwitchRow
 						label="Skip commands"

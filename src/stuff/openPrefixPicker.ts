@@ -4,62 +4,71 @@ import { vstorage } from "..";
 import {
 	getMenuSections,
 	menuLabel,
+	setGlobalSelection,
 	setSelection,
-	type PrefixEntry,
 } from "../settings";
 
 type SimpleActionSheet = (props: {
 	key: "CardOverflow";
-	header: { title: string };
+	header: { title: string; subtitle?: string };
 	options: { label: string; onPress?: () => void }[];
 }) => void;
 
-function getShowSimpleActionSheet(): SimpleActionSheet | null {
-	const mod = findByProps("showSimpleActionSheet") as {
+function getActionSheetApi() {
+	return findByProps("showSimpleActionSheet", "hideActionSheet") as {
 		showSimpleActionSheet?: SimpleActionSheet;
+		hideActionSheet?: () => void;
 	} | null;
-
-	return mod?.showSimpleActionSheet ?? null;
 }
 
-function makeOption(
-	label: string,
-	channelId: string,
-	id: string | null,
-	guildId?: string | null,
-) {
-	return {
-		label,
-		onPress: () => setSelection(channelId, id, vstorage, guildId),
+function buildOptions(onPick: (id: string | null) => void) {
+	const { favorites, recent, rest } = getMenuSections(vstorage);
+	const hideActionSheet = getActionSheetApi()?.hideActionSheet;
+	const options: { label: string; onPress?: () => void }[] = [];
+
+	const add = (label: string, id: string | null) => {
+		options.push({
+			label,
+			onPress: () => {
+				onPick(id);
+				hideActionSheet?.();
+			},
+		});
 	};
-}
 
-function addSectionOptions(
-	options: { label: string; onPress?: () => void }[],
-	entries: PrefixEntry[],
-	channelId: string,
-	guildId: string | null | undefined,
-	section?: "favorite" | "recent",
-) {
-	for (const entry of entries) {
-		options.push(makeOption(menuLabel(entry, section), channelId, entry.id, guildId));
-	}
+	add("Disabled", null);
+	for (const entry of favorites) add(menuLabel(entry, "favorite"), entry.id);
+	for (const entry of recent) add(menuLabel(entry, "recent"), entry.id);
+	for (const entry of rest) add(menuLabel(entry), entry.id);
+
+	return options;
 }
 
 export function openPrefixPicker(channelId: string, guildId?: string | null) {
-	const showSimpleActionSheet = getShowSimpleActionSheet();
+	const showSimpleActionSheet = getActionSheetApi()?.showSimpleActionSheet;
 	if (!showSimpleActionSheet) return;
-
-	const { favorites, recent, rest } = getMenuSections(vstorage);
-	const options = [makeOption("Disabled", channelId, null, guildId)];
-
-	addSectionOptions(options, favorites, channelId, guildId, "favorite");
-	addSectionOptions(options, recent, channelId, guildId, "recent");
-	addSectionOptions(options, rest, channelId, guildId);
 
 	showSimpleActionSheet({
 		key: "CardOverflow",
 		header: { title: "Message Prefix" },
-		options,
+		options: buildOptions(id => setSelection(channelId, id, vstorage, guildId)),
 	});
+}
+
+export function openGlobalPrefixPicker() {
+	const showSimpleActionSheet = getActionSheetApi()?.showSimpleActionSheet;
+	if (!showSimpleActionSheet) return;
+
+	showSimpleActionSheet({
+		key: "CardOverflow",
+		header: {
+			title: "Message Prefix",
+			subtitle: "Used when no channel is open or persistence is global",
+		},
+		options: buildOptions(id => setGlobalSelection(id, vstorage)),
+	});
+}
+
+export function canOpenPrefixPicker() {
+	return Boolean(getActionSheetApi()?.showSimpleActionSheet);
 }

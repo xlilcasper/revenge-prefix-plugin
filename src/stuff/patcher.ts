@@ -41,12 +41,6 @@ function injectPrefixPill(ret: any) {
 	if (!ret?.props) return;
 
 	const pill = React.createElement(PrefixButton);
-
-	if (Array.isArray(ret.props.children)) {
-		ret.props.children.unshift(pill);
-		return;
-	}
-
 	const row = findInReactTree(
 		ret.props.children,
 		x => x?.type?.displayName === "View" && Array.isArray(x.props?.children),
@@ -54,6 +48,11 @@ function injectPrefixPill(ret: any) {
 
 	if (row?.props?.children) {
 		row.props.children.unshift(pill);
+		return;
+	}
+
+	if (Array.isArray(ret.props.children)) {
+		ret.props.children.unshift(pill);
 		return;
 	}
 
@@ -104,11 +103,6 @@ export default function patcher() {
 				before("type", RN.Pressable, ([props]) => {
 					try {
 						if (props?.accessibilityLabel !== sendLabel) return;
-
-						const pressName = props?.onPress?.name;
-						if (pressName !== "handlePressSend" && props?.testID !== "send-button") {
-							return;
-						}
 
 						const previous = props.onLongPress;
 						props.onLongPress = () => {

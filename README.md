@@ -6,16 +6,19 @@ A [Revenge](https://github.com/revenge-mod/revenge-bundle) port of the [Vencord 
 
 - Custom prefix list with labels, favorites, and recents
 - Configurable prefix format (`**[{name}]:** ` by default)
-- Remember selection globally, per server, per channel, or not at all
-- Auto-disable after one message (with sticky mode and Shift-to-keep overrides)
+- Remember selection globally, per server, per channel, or for this session only
+- Auto-disable after one message (or stay on after send)
 - Skip rules for commands, empty messages, and already-prefixed messages
-- Chat bar pill opens a prefix picker (long-press **Send** as fallback on Discord 332+)
 
 ## Using it
 
-1. **Settings (wrench):** pick your active prefix under **Active prefix**
-2. **Chat pill:** tap the **Off** / prefix label above the input (left side)
-3. **Fallback:** long-press the **Send** button to open the prefix menu if the pill is not visible
+On mobile, the reliable ways to change prefix are:
+
+1. **Long-press Send** in any chat to open the prefix menu
+2. **Settings (wrench) → Choose prefix** to open the same menu
+3. **Chat pill** (if visible): tap the **Off** / prefix label above the input
+
+## Install
 
 1. Open Discord with Revenge installed
 2. Go to **Settings → Revenge → Plugins**

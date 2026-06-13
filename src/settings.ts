@@ -25,15 +25,10 @@ export const DEFAULT_PREFIXES: PrefixEntry[] = [
 ];
 
 const MAX_RECENTS = 5;
+const sessionSelections = new Map<string, string>();
 
 type SelectionListener = (id: string | null) => void;
 const selectionListeners = new Map<string, Set<SelectionListener>>();
-
-export let shiftHeld = false;
-
-export function setShiftHeld(value: boolean) {
-	shiftHeld = value;
-}
 
 export function subscribeSelection(channelId: string, listener: SelectionListener) {
 	if (!channelId) return () => {};
@@ -71,11 +66,9 @@ export function ensureSettings(vstorage: PrefixifyStorage) {
 	}
 	if (typeof vstorage.autoDisable !== "boolean") vstorage.autoDisable = true;
 	if (typeof vstorage.stickyMode !== "boolean") vstorage.stickyMode = false;
-	if (typeof vstorage.shiftToKeep !== "boolean") vstorage.shiftToKeep = true;
 	if (typeof vstorage.skipCommands !== "boolean") vstorage.skipCommands = true;
 	if (typeof vstorage.skipEmpty !== "boolean") vstorage.skipEmpty = true;
 	if (typeof vstorage.skipAlreadyPrefixed !== "boolean") vstorage.skipAlreadyPrefixed = true;
-	if (typeof vstorage.contextMenu !== "boolean") vstorage.contextMenu = true;
 	if (vstorage.globalSelection === null) delete vstorage.globalSelection;
 }
 
@@ -86,11 +79,11 @@ export interface PrefixifyStorage {
 	persistState?: boolean;
 	autoDisable: boolean;
 	stickyMode: boolean;
-	shiftToKeep: boolean;
+	shiftToKeep?: boolean;
 	skipCommands: boolean;
 	skipEmpty: boolean;
 	skipAlreadyPrefixed: boolean;
-	contextMenu: boolean;
+	contextMenu?: boolean;
 	globalSelection: string | null;
 	channelSelections: Record<string, string>;
 	guildSelections: Record<string, string>;
@@ -156,7 +149,7 @@ function storageKey(channelId: string, guildId: string | null | undefined, vstor
 }
 
 export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage, guildId?: string | null) {
-	if (!channelId) return null;
+	if (!channelId) return vstorage.globalSelection ?? null;
 	ensureSettings(vstorage);
 
 	const loc = storageKey(channelId, guildId, vstorage);
@@ -165,7 +158,12 @@ export function getStoredSelection(channelId: string, vstorage: PrefixifyStorage
 	if (loc?.type === "guild") return vstorage.guildSelections[loc.key] ?? null;
 	if (loc?.type === "global") return vstorage.globalSelection ?? null;
 
-	return null;
+	return sessionSelections.get(channelId) ?? null;
+}
+
+export function getEffectiveSelection(vstorage: PrefixifyStorage, channelId?: string | null, guildId?: string | null) {
+	if (channelId) return getStoredSelection(channelId, vstorage, guildId);
+	return vstorage.globalSelection ?? null;
 }
 
 export function setStoredSelection(
@@ -174,7 +172,6 @@ export function setStoredSelection(
 	vstorage: PrefixifyStorage,
 	guildId?: string | null,
 ) {
-	if (!channelId) return;
 	ensureSettings(vstorage);
 
 	const loc = storageKey(channelId, guildId, vstorage);
@@ -188,9 +185,18 @@ export function setStoredSelection(
 	} else if (loc?.type === "global") {
 		if (id) vstorage.globalSelection = id;
 		else delete vstorage.globalSelection;
+	} else if (channelId) {
+		if (id) sessionSelections.set(channelId, id);
+		else sessionSelections.delete(channelId);
 	}
 
 	notifySelection(channelId, id);
+}
+
+export function setGlobalSelection(id: string | null, vstorage: PrefixifyStorage) {
+	ensureSettings(vstorage);
+	if (id) vstorage.globalSelection = id;
+	else delete vstorage.globalSelection;
 }
 
 export function setSelection(
@@ -229,7 +235,6 @@ export function shouldAutoDisable(vstorage: PrefixifyStorage) {
 	ensureSettings(vstorage);
 	if (!vstorage.autoDisable) return false;
 	if (vstorage.stickyMode) return false;
-	if (vstorage.shiftToKeep && shiftHeld) return false;
 	return true;
 }
 
@@ -237,4 +242,10 @@ export function menuLabel(entry: PrefixEntry, section?: "favorite" | "recent") {
 	if (section === "favorite") return `★ ${entry.label}`;
 	if (section === "recent") return `↺ ${entry.label}`;
 	return entry.label;
+}
+
+export function selectionSummary(id: string | null, vstorage: PrefixifyStorage) {
+	const entry = getPrefixById(id, vstorage);
+	if (!entry) return "Off";
+	return `${entry.label} → ${getPrefixText(entry, vstorage)}`;
 }
